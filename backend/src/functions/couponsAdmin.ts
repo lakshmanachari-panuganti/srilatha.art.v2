@@ -148,8 +148,8 @@ async function adminCouponRedemptions(request: HttpRequest, context: InvocationC
   }
 }
 
-app.http('adminListCoupons', { route: 'admin/coupons', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCoupons });
-app.http('adminCreateCoupon', { route: 'admin/coupons', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminCreateCoupon });
-app.http('adminUpdateCoupon', { route: 'admin/coupons/{code}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCoupon });
-app.http('adminDeleteCoupon', { route: 'admin/coupons/{code}', methods: ['DELETE', 'OPTIONS'], authLevel: 'anonymous', handler: adminDeleteCoupon });
-app.http('adminCouponRedemptions', { route: 'admin/coupons/{code}/redemptions', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminCouponRedemptions });
+app.http('adminListCoupons', { route: 'mgmt/coupons', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCoupons });
+app.http('adminCreateCoupon', { route: 'mgmt/coupons', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminCreateCoupon });
+app.http('adminUpdateCoupon', { route: 'mgmt/coupons/{code}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCoupon });
+app.http('adminDeleteCoupon', { route: 'mgmt/coupons/{code}', methods: ['DELETE', 'OPTIONS'], authLevel: 'anonymous', handler: adminDeleteCoupon });
+app.http('adminCouponRedemptions', { route: 'mgmt/coupons/{code}/redemptions', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminCouponRedemptions });

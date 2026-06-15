@@ -156,21 +156,21 @@ async function adminLogout(
 // ---------------------------------------------------------------------------
 
 app.http('adminSetup', {
-  route: 'admin/setup',
+  route: 'mgmt/setup',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminSetup,
 });
 
 app.http('adminLogin', {
-  route: 'admin/login',
+  route: 'mgmt/login',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminLogin,
 });
 
 app.http('adminLogout', {
-  route: 'admin/logout',
+  route: 'mgmt/logout',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminLogout,

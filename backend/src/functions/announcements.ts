@@ -141,7 +141,7 @@ async function adminDeleteAnnouncement(request: HttpRequest, context: Invocation
 }
 
 app.http('getPublicAnnouncements', { route: 'announcements', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: getPublicAnnouncements });
-app.http('adminListAnnouncements', { route: 'admin/announcements', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListAnnouncements });
-app.http('adminCreateAnnouncement', { route: 'admin/announcements', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminCreateAnnouncement });
-app.http('adminUpdateAnnouncement', { route: 'admin/announcements/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateAnnouncement });
-app.http('adminDeleteAnnouncement', { route: 'admin/announcements/{id}', methods: ['DELETE', 'OPTIONS'], authLevel: 'anonymous', handler: adminDeleteAnnouncement });
+app.http('adminListAnnouncements', { route: 'mgmt/announcements', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListAnnouncements });
+app.http('adminCreateAnnouncement', { route: 'mgmt/announcements', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminCreateAnnouncement });
+app.http('adminUpdateAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateAnnouncement });
+app.http('adminDeleteAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['DELETE', 'OPTIONS'], authLevel: 'anonymous', handler: adminDeleteAnnouncement });

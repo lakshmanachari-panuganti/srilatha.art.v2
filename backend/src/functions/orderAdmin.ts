@@ -274,35 +274,35 @@ async function adminBulkStatus(request: HttpRequest, context: InvocationContext)
 }
 
 app.http('adminListOrders', {
-  route: 'admin/orders',
+  route: 'mgmt/orders',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminListOrders,
 });
 
 app.http('adminGetOrder', {
-  route: 'admin/orders/{id}',
+  route: 'mgmt/orders/{id}',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminGetOrder,
 });
 
 app.http('adminUpdateStatus', {
-  route: 'admin/orders/{id}/status',
+  route: 'mgmt/orders/{id}/status',
   methods: ['PATCH', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminUpdateStatus,
 });
 
 app.http('adminAddNote', {
-  route: 'admin/orders/{id}/notes',
+  route: 'mgmt/orders/{id}/notes',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminAddNote,
 });
 
 app.http('adminBulkStatus', {
-  route: 'admin/orders/bulk-status',
+  route: 'mgmt/orders/bulk-status',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminBulkStatus,

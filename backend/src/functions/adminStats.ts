@@ -94,4 +94,4 @@ async function adminGetStats(request: HttpRequest, context: InvocationContext): 
   }
 }
 
-app.http('adminGetStats', { route: 'admin/stats', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetStats });
+app.http('adminGetStats', { route: 'mgmt/stats', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetStats });

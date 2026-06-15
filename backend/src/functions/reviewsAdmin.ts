@@ -108,5 +108,5 @@ async function adminModerateReview(request: HttpRequest, context: InvocationCont
   }
 }
 
-app.http('adminListReviews', { route: 'admin/reviews', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListReviews });
-app.http('adminModerateReview', { route: 'admin/reviews/{id}/{action}', methods: ['PATCH', 'POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminModerateReview });
+app.http('adminListReviews', { route: 'mgmt/reviews', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListReviews });
+app.http('adminModerateReview', { route: 'mgmt/reviews/{id}/{action}', methods: ['PATCH', 'POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminModerateReview });

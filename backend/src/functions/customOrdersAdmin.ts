@@ -92,5 +92,5 @@ async function adminUpdateCustomOrder(request: HttpRequest, context: InvocationC
   }
 }
 
-app.http('adminListCustomOrders', { route: 'admin/custom-orders', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCustomOrders });
-app.http('adminUpdateCustomOrder', { route: 'admin/custom-orders/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCustomOrder });
+app.http('adminListCustomOrders', { route: 'mgmt/custom-orders', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCustomOrders });
+app.http('adminUpdateCustomOrder', { route: 'mgmt/custom-orders/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCustomOrder });

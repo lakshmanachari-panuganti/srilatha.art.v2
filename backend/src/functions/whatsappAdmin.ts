@@ -65,5 +65,5 @@ async function adminGetConversation(request: HttpRequest, context: InvocationCon
   }
 }
 
-app.http('adminListConversations', { route: 'admin/whatsapp/conversations', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListConversations });
-app.http('adminGetConversation', { route: 'admin/whatsapp/conversations/{phone}', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetConversation });
+app.http('adminListConversations', { route: 'mgmt/whatsapp/conversations', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListConversations });
+app.http('adminGetConversation', { route: 'mgmt/whatsapp/conversations/{phone}', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetConversation });

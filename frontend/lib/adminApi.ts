@@ -64,9 +64,9 @@ export interface AdminLoginResponse {
 export const adminApi = {
   // Auth
   login: (email: string, password: string) =>
-    request<AdminLoginResponse>('/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<AdminLoginResponse>('/mgmt/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   setup: (input: { email: string; password: string; name: string; setupToken: string }) =>
-    request<{ success: true; email: string }>('/admin/setup', { method: 'POST', body: JSON.stringify(input) }),
+    request<{ success: true; email: string }>('/mgmt/setup', { method: 'POST', body: JSON.stringify(input) }),
 
   // Stats
   stats: () => request<{
@@ -75,16 +75,16 @@ export const adminApi = {
     products: { total: number; active: number; lowStockCount: number; lowStock: Array<{ id: string; category: string; stockCount: number }> };
     customOrders: { total: number; byStatus: Record<string, number> };
     reviews: { total: number; pending: number };
-  }>('/admin/stats'),
+  }>('/mgmt/stats'),
 
   // Products
-  listProducts: () => request<{ products: AdminProduct[]; total: number }>('/admin/products'),
+  listProducts: () => request<{ products: AdminProduct[]; total: number }>('/mgmt/products'),
   createProduct: (data: Partial<AdminProduct>) =>
-    request<AdminProduct>('/admin/products', { method: 'POST', body: JSON.stringify(data) }),
+    request<AdminProduct>('/mgmt/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id: string, data: Partial<AdminProduct>) =>
-    request<AdminProduct>(`/admin/products/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<AdminProduct>(`/mgmt/products/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProduct: (id: string, hard = false) =>
-    request<{ success: true }>(`/admin/products/${encodeURIComponent(id)}${hard ? '?hard=true' : ''}`, { method: 'DELETE' }),
+    request<{ success: true }>(`/mgmt/products/${encodeURIComponent(id)}${hard ? '?hard=true' : ''}`, { method: 'DELETE' }),
 
   // Orders
   listOrders: (params?: { status?: string; search?: string; page?: number; limit?: number }) => {
@@ -94,53 +94,53 @@ export const adminApi = {
     if (params?.page) qs.set('page', String(params.page));
     if (params?.limit) qs.set('limit', String(params.limit));
     const q = qs.toString();
-    return request<{ orders: AdminOrder[]; total: number; page: number }>(`/admin/orders${q ? `?${q}` : ''}`);
+    return request<{ orders: AdminOrder[]; total: number; page: number }>(`/mgmt/orders${q ? `?${q}` : ''}`);
   },
-  getOrder: (id: string) => request<AdminOrderDetail>(`/admin/orders/${encodeURIComponent(id)}`),
+  getOrder: (id: string) => request<AdminOrderDetail>(`/mgmt/orders/${encodeURIComponent(id)}`),
   updateOrderStatus: (id: string, body: { status: string; note?: string; trackingNumber?: string; trackingUrl?: string }) =>
-    request<{ success: true; status: string }>(`/admin/orders/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<{ success: true; status: string }>(`/mgmt/orders/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify(body) }),
   addOrderNote: (id: string, note: string) =>
-    request<{ success: true }>(`/admin/orders/${encodeURIComponent(id)}/notes`, { method: 'POST', body: JSON.stringify({ note }) }),
+    request<{ success: true }>(`/mgmt/orders/${encodeURIComponent(id)}/notes`, { method: 'POST', body: JSON.stringify({ note }) }),
   bulkOrderStatus: (orderIds: string[], status: string) =>
-    request<{ results: Array<{ id: string; ok: boolean; error?: string }> }>(`/admin/orders/bulk-status`, { method: 'POST', body: JSON.stringify({ orderIds, status }) }),
+    request<{ results: Array<{ id: string; ok: boolean; error?: string }> }>(`/mgmt/orders/bulk-status`, { method: 'POST', body: JSON.stringify({ orderIds, status }) }),
 
   // Custom orders
   listCustomOrders: (status?: string) =>
-    request<{ customOrders: AdminCustomOrder[]; total: number }>(`/admin/custom-orders${status ? `?status=${status}` : ''}`),
+    request<{ customOrders: AdminCustomOrder[]; total: number }>(`/mgmt/custom-orders${status ? `?status=${status}` : ''}`),
   updateCustomOrder: (id: string, body: { status?: string; adminNote?: string }) =>
-    request<AdminCustomOrder>(`/admin/custom-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    request<AdminCustomOrder>(`/mgmt/custom-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Coupons
-  listCoupons: () => request<{ coupons: AdminCoupon[] }>('/admin/coupons'),
+  listCoupons: () => request<{ coupons: AdminCoupon[] }>('/mgmt/coupons'),
   createCoupon: (data: Partial<AdminCoupon>) =>
-    request<AdminCoupon>('/admin/coupons', { method: 'POST', body: JSON.stringify(data) }),
+    request<AdminCoupon>('/mgmt/coupons', { method: 'POST', body: JSON.stringify(data) }),
   updateCoupon: (code: string, data: Partial<AdminCoupon>) =>
-    request<AdminCoupon>(`/admin/coupons/${encodeURIComponent(code)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<AdminCoupon>(`/mgmt/coupons/${encodeURIComponent(code)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCoupon: (code: string) =>
-    request<{ success: true }>(`/admin/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
+    request<{ success: true }>(`/mgmt/coupons/${encodeURIComponent(code)}`, { method: 'DELETE' }),
   couponRedemptions: (code: string) =>
-    request<{ code: string; total: number; redemptions: unknown[] }>(`/admin/coupons/${encodeURIComponent(code)}/redemptions`),
+    request<{ code: string; total: number; redemptions: unknown[] }>(`/mgmt/coupons/${encodeURIComponent(code)}/redemptions`),
 
   // Announcements
-  listAnnouncements: () => request<{ announcements: AdminAnnouncement[] }>('/admin/announcements'),
+  listAnnouncements: () => request<{ announcements: AdminAnnouncement[] }>('/mgmt/announcements'),
   createAnnouncement: (data: Partial<AdminAnnouncement>) =>
-    request<AdminAnnouncement>('/admin/announcements', { method: 'POST', body: JSON.stringify(data) }),
+    request<AdminAnnouncement>('/mgmt/announcements', { method: 'POST', body: JSON.stringify(data) }),
   updateAnnouncement: (id: string, data: Partial<AdminAnnouncement>) =>
-    request<AdminAnnouncement>(`/admin/announcements/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    request<AdminAnnouncement>(`/mgmt/announcements/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteAnnouncement: (id: string) =>
-    request<{ success: true }>(`/admin/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    request<{ success: true }>(`/mgmt/announcements/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   // Reviews
   listReviews: (status?: string) =>
-    request<{ reviews: AdminReview[]; total: number }>(`/admin/reviews${status ? `?status=${status}` : ''}`),
+    request<{ reviews: AdminReview[]; total: number }>(`/mgmt/reviews${status ? `?status=${status}` : ''}`),
   moderateReview: (id: string, action: 'approve' | 'reject') =>
-    request<AdminReview>(`/admin/reviews/${encodeURIComponent(id)}/${action}`, { method: 'PATCH' }),
+    request<AdminReview>(`/mgmt/reviews/${encodeURIComponent(id)}/${action}`, { method: 'PATCH' }),
 
   // WhatsApp
   listConversations: () =>
-    request<{ conversations: AdminWhatsappSummary[]; total: number }>('/admin/whatsapp/conversations'),
+    request<{ conversations: AdminWhatsappSummary[]; total: number }>('/mgmt/whatsapp/conversations'),
   getConversation: (phone: string) =>
-    request<{ phone: string; messages: AdminWhatsappMessage[] }>(`/admin/whatsapp/conversations/${encodeURIComponent(phone)}`),
+    request<{ phone: string; messages: AdminWhatsappMessage[] }>(`/mgmt/whatsapp/conversations/${encodeURIComponent(phone)}`),
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────

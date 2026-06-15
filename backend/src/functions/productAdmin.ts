@@ -239,28 +239,28 @@ async function adminDeleteProduct(request: HttpRequest, context: InvocationConte
 }
 
 app.http('adminCreateProduct', {
-  route: 'admin/products',
+  route: 'mgmt/products',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminCreateProduct,
 });
 
 app.http('adminListProducts', {
-  route: 'admin/products',
+  route: 'mgmt/products',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminListProducts,
 });
 
 app.http('adminUpdateProduct', {
-  route: 'admin/products/{id}',
+  route: 'mgmt/products/{id}',
   methods: ['PATCH', 'PUT', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminUpdateProduct,
 });
 
 app.http('adminDeleteProduct', {
-  route: 'admin/products/{id}',
+  route: 'mgmt/products/{id}',
   methods: ['DELETE', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminDeleteProduct,
