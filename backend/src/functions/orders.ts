@@ -347,7 +347,7 @@ async function verifyPayment(
 // ---------------------------------------------------------------------------
 
 function normalizeOrder(entity: OrderEntity): Record<string, unknown> {
-  const { partitionKey, rowKey, etag, timestamp, customer, address, ...rest } =
+  const { partitionKey, rowKey, etag, timestamp, customer, address, status: _status, ...rest } =
     entity as OrderEntity & { etag?: string; timestamp?: unknown };
 
   return {
