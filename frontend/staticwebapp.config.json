@@ -1,0 +1,10 @@
+{
+  "navigationFallback": {
+    "rewrite": "/404.html",
+    "exclude": [
+      "/*.{png,jpg,jpeg,gif,svg}",
+      "/_next/*"
+    ]
+  },
+  "trailingSlash": "auto"
+}
