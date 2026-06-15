@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { waLink } from "@/lib/contact";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FormData {
@@ -150,10 +151,9 @@ export default function CustomOrderPage() {
   }
 
   // ── WhatsApp link ────────────────────────────────────────────────────────────
-  const whatsappMsg = encodeURIComponent(
+  const whatsappUrl = waLink(
     `Hi Srilatha! I'd love to commission a custom ${form.artType || "art"} piece. I've submitted the form — looking forward to hearing from you!`
   );
-  const whatsappUrl = `https://wa.me/919876543210?text=${whatsappMsg}`;
 
   // ─── Success State ──────────────────────────────────────────────────────────
   if (submitted) {
@@ -512,7 +512,7 @@ export default function CustomOrderPage() {
                   Skip the form and message Srilatha directly on WhatsApp to discuss your custom piece right away.
                 </p>
                 <a
-                  href="https://wa.me/919876543210?text=Hi%20Srilatha!%20I'd%20like%20to%20commission%20a%20custom%20art%20piece."
+                  href={waLink("Hi Srilatha! I'd like to commission a custom art piece.")}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="btn btn-whatsapp btn-full"
@@ -533,7 +533,6 @@ export default function CustomOrderPage() {
                     { icon: "📸", text: "Progress photos shared at every stage" },
                     { icon: "🔄", text: "2 free design revisions included" },
                     { icon: "📦", text: "Securely packaged & insured shipping" },
-                    { icon: "⭐", text: "200+ happy customers across India" },
                     { icon: "🤝", text: "Personal care from a solo artist" },
                   ].map(({ icon, text }) => (
                     <li key={text} className="co-trust-item">

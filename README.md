@@ -59,7 +59,7 @@ srilatha.art.v2/
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 24
 - Azure Functions Core Tools v4
 - PowerShell 7+
 
@@ -113,43 +113,95 @@ npm run dev
 
 ## 🎨 Design System
 
-- **Primary Font**: Playfair Display (headings) + Inter (body)
-- **Colors**: Gold `#C9A84C` · Ink `#1A1208` · Cream `#FDF8F0`
+- **Fonts**: Inter (display + body, weights 300–900) · Playfair Display (italic accents, 400–800)
+- **Aesthetic**: Dark premium · gradient accents · glowing blue CTAs
 - **Mobile-First**: All layouts designed for 375px first
-- **Aesthetic**: Warm, premium, handcrafted
+
+### Colour tokens (`frontend/app/globals.css`)
+| Token | Hex | Use |
+|---|---|---|
+| `--bg-base` | `#090B10` | Page background |
+| `--bg-surface` | `#0D1018` | Section background |
+| `--bg-card` | `#111520` | Card surface |
+| `--bg-elevated` | `#1A2030` | Elevated form / input |
+| `--accent-blue` | `#00A3FF` | Primary CTA · brand primary (also Razorpay theme) |
+| `--accent-green` | `#00E676` | Success / availability |
+| `--accent-purple` | `#7B61FF` | Tertiary gradient stop |
+| `--accent-gold` | `#FFB800` | Ratings · highlights |
+| `--accent-teal` | `#00C9B8` | Secondary accent |
+| `--text-primary` | `#FFFFFF` | Body text |
+| `--text-secondary` | `rgba(255,255,255,0.6)` | Sub-text |
+
+### Signature gradient
+`--gradient-brand: linear-gradient(135deg, #00E676 0%, #00A3FF 50%, #7B61FF 100%)` — used on brand wordmarks, prices and section accents.
+
+### Contact (single source of truth)
+`frontend/lib/contact.ts` — WhatsApp `+91 90523 80325`, email `studio@srilatha.art`, studio at Chilkanagar, Uppal, Hyderabad.
 
 ---
 
 ## 📱 Pages
 
+### Storefront
 | Route | Description |
 |---|---|
-| `/` | Homepage with hero, collections, best sellers |
+| `/` | Homepage |
 | `/shop` | Browse all artworks with filter/sort |
 | `/product/[slug]` | Product detail with gallery, reviews |
-| `/cart` | Cart with coupon codes |
-| `/checkout` | Address + Razorpay payment |
+| `/cart` | Full cart page |
+| `/checkout` | Address + Razorpay payment (server-side validated) |
+| `/order-success` | Razorpay redirect target |
 | `/custom-order` | Commission a bespoke piece |
-| `/account` | Customer dashboard |
+| `/sale` | Items currently on sale |
+| `/account` | Customer profile |
 | `/account/orders` | Order history & tracking |
 | `/account/wishlist` | Saved items |
-| `/sale` | Current offers & coupons |
-| `/about` | Our story |
-| `/contact` | Get in touch |
-| `/faq` | Frequently asked questions |
-| `/care-guide` | Art care instructions |
-| `/shipping-returns` | Policies |
-| `/admin` | Admin panel (protected) |
+| `/account/settings` | Account settings |
+| `/login` | Google OAuth sign-in |
+
+### Info / Policy
+| Route | Description |
+|---|---|
+| `/about` | Artist story + studio address |
+| `/contact` | WhatsApp, email, Instagram, studio address |
+| `/faq` | Sections: Orders, Returns, Custom, Care, Payments |
+| `/care-guide` | Care instructions per art type |
+| `/shipping-returns` | Pan-India shipping + 7-day returns |
+| `/policies/custom-orders` | Custom-order terms (50% advance, revisions, etc.) |
+| `/privacy-policy` | Privacy policy |
+| `/terms` | Terms of service |
+
+### Admin
+| Route | Description |
+|---|---|
+| `/admin` | Login |
+| `/admin/setup` | First-time bootstrap (requires `ADMIN_SETUP_TOKEN`) |
+| `/admin/dashboard` | KPIs (revenue, orders, low-stock, pending reviews) |
+| `/admin/products` · `/new` · `/edit?id=` | Product CRUD |
+| `/admin/orders` · `/detail?id=` | List, filter, search, bulk status, detail with tracking + notes |
+| `/admin/custom-orders` | Inbox + status + admin notes |
+| `/admin/coupons` | Coupon CRUD with redemption tracking |
+| `/admin/announcements` | Schedule + priority |
+| `/admin/reviews` | Approve / reject moderation queue |
+| `/admin/whatsapp` · `/conversation?phone=` | Conversation viewer |
+| `/admin/settings` | Admin profile |
 
 ---
 
 ## 🔐 Admin Panel
 
-Access at `/admin` with:
-- **Username**: admin
-- **Password**: srilatha2025 *(change via env var before production)*
+Auth is **email + password** with bcrypt hashes stored in the `admins` Table and JWT sessions.
 
-Features: Dashboard, Product CRUD + AI content generation, Order management, Coupons, Announcements, Review moderation, WhatsApp conversations.
+### First-time setup
+1. Set `ADMIN_SETUP_TOKEN=<random-secret>` in the Azure Function App env.
+2. Open `/admin/setup` and fill in name, email, password (10+ chars) and the setup token.
+3. The setup endpoint is locked once the first admin exists.
+
+### Subsequent admins
+Add directly via the `admins` storage Table (admin UI for managing other admins ships in a future release).
+
+### Features
+Dashboard · Product CRUD · Order management (status / notes / tracking / bulk) · Custom Orders inbox · Coupons CRUD · Announcements (scheduled) · Review moderation · WhatsApp conversation viewer.
 
 ---
 

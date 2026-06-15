@@ -1,7 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { getTableClient, upsertEntity, queryEntities, deleteEntity } from '../utils/tableStorage';
+import { getTableClient, upsertEntity, queryEntities, deleteEntity, getEntity } from '../utils/tableStorage';
+import { computeCouponDiscount, getCouponByCode } from './coupons';
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -86,6 +87,7 @@ interface OrderEntity {
   address: string;   // JSON-serialised AddressInfo
   subtotal: number;
   shipping: number;
+  discount: number;
   total: number;
   createdAt: string;
   couponCode?: string;
@@ -116,11 +118,28 @@ async function createOrder(
       return json({ error: 'items, customer and address are required' }, 400);
     }
 
-    // Calculate amounts (paise)
+    // Calculate amounts (paise) — server is the source of truth.
     const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
-    const shipping = subtotal >= FREE_SHIPPING_THRESHOLD_PAISE ? 0 : SHIPPING_COST_PAISE;
-    const total = subtotal + shipping;
+    let shipping = subtotal >= FREE_SHIPPING_THRESHOLD_PAISE ? 0 : SHIPPING_COST_PAISE;
+    let discount = 0;
+    let appliedCouponCode: string | undefined;
 
+    if (couponCode) {
+      const coupon = await getCouponByCode(couponCode);
+      if (coupon) {
+        const result = computeCouponDiscount(coupon, subtotal, shipping);
+        if (result.valid) {
+          discount = result.discount;
+          if (result.freeShipping) shipping = 0;
+          appliedCouponCode = coupon.rowKey;
+        }
+        // If the coupon is invalid we proceed without it rather than blocking
+        // the checkout — the UX layer already validated. Server-side is the
+        // hard ceiling: nothing extra is applied.
+      }
+    }
+
+    const total = Math.max(0, subtotal - discount + shipping);
     const orderId = `ORD-${Date.now()}`;
 
     // Create Razorpay order
@@ -160,9 +179,10 @@ async function createOrder(
       address: JSON.stringify(address),
       subtotal,
       shipping,
+      discount,
       total,
       createdAt: new Date().toISOString(),
-      ...(couponCode ? { couponCode } : {}),
+      ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
     };
     await upsertEntity('orders', orderEntity);
 
@@ -184,6 +204,10 @@ async function createOrder(
       orderId,
       razorpayOrderId,
       amount: total,
+      subtotal,
+      shipping,
+      discount,
+      appliedCouponCode: appliedCouponCode ?? null,
       currency: 'INR',
       key: RAZORPAY_KEY_ID,
     });

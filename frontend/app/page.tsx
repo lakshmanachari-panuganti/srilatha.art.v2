@@ -1,37 +1,42 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { getBestSellers, getNewArrivals, REVIEWS, formatPrice, CATEGORIES } from '@/lib/data';
+import { getBestSellers, getNewArrivals, REVIEWS, formatPrice, CATEGORIES, PRODUCTS } from '@/lib/data';
 import ProductCard from '@/components/shop/ProductCard';
 import NewsletterForm from '@/components/ui/NewsletterForm';
+import { waLink } from '@/lib/contact';
+import { Brush, Plane, Undo2, Award, Lightbulb, Beaker, Sparkles, Package } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Srilatha Art — Handcrafted Resin Art, Lippan, Mandala & More | Chennai',
-  description: 'Premium handmade art by Srilatha — Resin Art, Lippan Art, Dot Mandala, Kolam, Wedding Decor & Gifts. Ships pan-India. Each piece poured by hand in our Chennai studio.',
+  title: 'Srilatha Art — Handcrafted Resin Art, Lippan, Mandala & More',
+  description: 'Premium handmade art by Srilatha — Resin Art, Lippan Art, Dot Mandala, Kolam, Wedding Decor & Gifts. Ships pan-India. Each piece poured by hand in our studio.',
   keywords: 'resin art india, handmade resin art, lippan art, dot mandala, kolam art, buy handmade art online india',
 };
 
+const countByCategory = (cat: string) => PRODUCTS.filter(p => p.category === cat).length;
+const piecesLabel = (n: number) => `${n} ${n === 1 ? 'piece' : 'pieces'}`;
+
 const COLLECTIONS = [
-  { id: 'resin',   label: 'Resin Art',     desc: '12 products', img: '/images/resin-art-hero.png',   primary: true },
-  { id: 'lippan',  label: 'Lippan Art',    desc: '6 products',  img: '/images/lippan-art.png' },
-  { id: 'mandala', label: 'Dot Mandala',   desc: '5 products',  img: '/images/dot-mandala.png' },
-  { id: 'kolam',   label: 'Kolam Art',     desc: '4 products',  img: '/images/kolam-art.png' },
-  { id: 'wedding', label: 'Wedding Decor', desc: '8 products',  img: '/images/wedding-decor.png' },
-  { id: 'gifts',   label: 'Gift Sets',     desc: '10 products', img: '/images/gift-items.png' },
-];
+  { id: 'resin',   label: 'Resin Art',     img: '/images/resin-art-hero.png', primary: true },
+  { id: 'lippan',  label: 'Lippan Art',    img: '/images/lippan-art.png' },
+  { id: 'mandala', label: 'Dot Mandala',   img: '/images/dot-mandala.png' },
+  { id: 'kolam',   label: 'Kolam Art',     img: '/images/kolam-art.png' },
+  { id: 'wedding', label: 'Wedding Decor', img: '/images/wedding-decor.png' },
+  { id: 'gifts',   label: 'Gift Sets',     img: '/images/gift-items.png' },
+].map(c => ({ ...c, desc: piecesLabel(countByCategory(c.id)) }));
 
 const WHY_ITEMS = [
-  { icon: '🎨', title: '100% Handmade', desc: 'Every piece is made to order by Srilatha herself — never mass-produced.' },
-  { icon: '✈️', title: 'Pan-India Shipping', desc: 'Safe, insured delivery to every pincode in India in 5–7 days.' },
-  { icon: '🔄', title: 'Easy Returns', desc: '7-day hassle-free return policy. No questions asked.' },
-  { icon: '⭐', title: 'Premium Quality', desc: 'Only food-grade resins and certified non-toxic pigments.' },
+  { Icon: Brush, title: '100% Handmade', desc: 'Every piece is made to order by Srilatha herself — never mass-produced.' },
+  { Icon: Plane, title: 'Pan-India Shipping', desc: 'Safe, insured delivery to every pincode in India in 5–7 days.' },
+  { Icon: Undo2, title: 'Easy Returns', desc: '7-day hassle-free return policy. No questions asked.' },
+  { Icon: Award, title: 'Premium Quality', desc: 'Only food-grade resins and certified non-toxic pigments.' },
 ];
 
 const PROCESS_STEPS = [
-  { num: '01', icon: '💡', tag: 'CONCEPT', title: 'Conceptualise', desc: 'Every piece starts with a vision. You share your idea, we sketch the design together.' },
-  { num: '02', icon: '🫗', tag: 'CRAFT',   title: 'Pour & Layer', desc: 'Resin is poured in precise layers, each curing before the next — a 24–72 hr process.' },
-  { num: '03', icon: '✨', tag: 'FINISH',  title: 'Detail & Finish', desc: 'Gold leaf, pigments, and hand-painted details are added. Then polished to perfection.' },
-  { num: '04', icon: '📦', tag: 'SHIP',    title: 'Pack & Deliver', desc: 'Carefully wrapped in multiple layers and shipped with insurance to your door.' },
+  { num: '01', Icon: Lightbulb, tag: 'CONCEPT', title: 'Conceptualise', desc: 'Every piece starts with a vision. You share your idea, we sketch the design together.' },
+  { num: '02', Icon: Beaker,    tag: 'CRAFT',   title: 'Pour & Layer', desc: 'Resin is poured in precise layers, each curing before the next — a 24–72 hr process.' },
+  { num: '03', Icon: Sparkles,  tag: 'FINISH',  title: 'Detail & Finish', desc: 'Gold leaf, pigments, and hand-painted details are added. Then polished to perfection.' },
+  { num: '04', Icon: Package,   tag: 'SHIP',    title: 'Pack & Deliver', desc: 'Carefully wrapped in multiple layers and shipped with insurance to your door.' },
 ];
 
 export default function HomePage() {
@@ -52,17 +57,17 @@ export default function HomePage() {
             <div className="hero-eyebrow">
               <span className="eyebrow">
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: 'var(--glow-green)', display: 'inline-block' }} />
-                Handcrafted in Chennai · Ships Nationwide
+                Handmade Studio · Ships Across India
               </span>
             </div>
 
             <h1 className="hero h1" style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2.6rem,8vw,5.5rem)', fontWeight: 900, lineHeight: 1.06, letterSpacing: '-0.03em', color: 'var(--text-primary)', marginBottom: 'var(--sp-5)' }}>
-              Where Resin Art<br />
-              Becomes <em style={{ fontStyle: 'normal', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Soul</em>
+              Heirloom Resin Art<br />
+              Made <em style={{ fontStyle: 'normal', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>One Piece</em> at a Time
             </h1>
 
             <p className="hero-desc">
-              Each piece is poured by hand, layer by layer, in our Chennai studio.
+              Poured by hand, layer by layer, in our studio.
               No two pieces are ever alike — yours will be one of a kind.
             </p>
 
@@ -74,7 +79,7 @@ export default function HomePage() {
                 View All Artworks
               </Link>
               <a
-                href="https://wa.me/919876543210?text=Hi! I'm interested in your handmade art"
+                href={waLink("Hi! I'm interested in your handmade art")}
                 target="_blank" rel="noopener noreferrer"
                 className="btn btn-whatsapp btn-lg"
               >
@@ -98,18 +103,6 @@ export default function HomePage() {
           </svg>
         </div>
       </section>
-
-      {/* ─── STATS BAR ─────────────────────────────────────────── */}
-      <div className="stats-bar">
-        <div className="container">
-          <div className="stats-bar-inner">
-            <div className="stat-item"><div className="stat-number">500+</div><div className="stat-label">Happy Customers</div></div>
-            <div className="stat-item"><div className="stat-number">4.9★</div><div className="stat-label">Average Rating</div></div>
-            <div className="stat-item"><div className="stat-number">300+</div><div className="stat-label">Pieces Delivered</div></div>
-            <div className="stat-item"><div className="stat-number">100%</div><div className="stat-label">Handmade</div></div>
-          </div>
-        </div>
-      </div>
 
       {/* ─── COLLECTIONS ───────────────────────────────────────── */}
       <section className="section" style={{ background: 'var(--bg-surface)' }}>
@@ -177,13 +170,16 @@ export default function HomePage() {
           </div>
 
           <div className="why-grid">
-            {WHY_ITEMS.map((item) => (
-              <div key={item.title} className="why-card">
-                <div className="why-icon">{item.icon}</div>
-                <h3>{item.title}</h3>
-                <p>{item.desc}</p>
-              </div>
-            ))}
+            {WHY_ITEMS.map((item) => {
+              const Icon = item.Icon;
+              return (
+                <div key={item.title} className="why-card">
+                  <div className="why-icon" aria-hidden="true"><Icon size={28} strokeWidth={1.6} /></div>
+                  <h3>{item.title}</h3>
+                  <p>{item.desc}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -198,17 +194,20 @@ export default function HomePage() {
           </div>
 
           <div className="process-grid">
-            {PROCESS_STEPS.map((step) => (
-              <div key={step.num} className="process-step">
-                <div className="process-step-tag">
-                  <span className="badge badge-gray">{step.tag}</span>
+            {PROCESS_STEPS.map((step) => {
+              const Icon = step.Icon;
+              return (
+                <div key={step.num} className="process-step">
+                  <div className="process-step-tag">
+                    <span className="badge badge-gray">{step.tag}</span>
+                  </div>
+                  <div className="process-step-num">STEP {step.num}</div>
+                  <span className="process-step-icon" aria-hidden="true"><Icon size={28} strokeWidth={1.6} /></span>
+                  <h3>{step.title}</h3>
+                  <p>{step.desc}</p>
                 </div>
-                <div className="process-step-num">STEP {step.num}</div>
-                <span className="process-step-icon">{step.icon}</span>
-                <h3>{step.title}</h3>
-                <p>{step.desc}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -238,7 +237,7 @@ export default function HomePage() {
             <h2>Loved Across <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>India</span></h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', justifyContent: 'center', marginTop: 'var(--sp-2)' }}>
               <span style={{ color: 'var(--accent-gold)', fontSize: '1rem' }}>★★★★★</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>4.9 from 300+ verified buyers</span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Verified buyer reviews</span>
             </div>
           </div>
 
@@ -276,11 +275,11 @@ export default function HomePage() {
             <div>
               <span className="eyebrow">Our Story</span>
               <h2 className="heading-lg" style={{ marginBottom: 'var(--sp-5)', color: 'var(--text-primary)' }}>
-                Handcrafted with Love<br />
-                <span style={{ background: 'var(--gradient-warm)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>in Chennai</span>
+                Handcrafted<br />
+                <span style={{ background: 'var(--gradient-warm)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>with Care</span>
               </h2>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: 'var(--sp-6)', fontSize: '0.95rem' }}>
-                Srilatha is a self-taught artist from Chennai who discovered the magic of resin art in 2019.
+                Srilatha is a self-taught artist who discovered the magic of resin art in 2019.
                 Captivated by how liquid resin captures light, color, and movement, she began experimenting
                 in her home studio — combining modern resin techniques with the rich folk art motifs of India.
                 What started as a creative outlet has grown into a thriving handmade art business.

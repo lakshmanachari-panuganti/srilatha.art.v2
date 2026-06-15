@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { getProductBySlug, PRODUCTS, REVIEWS, formatPrice } from '@/lib/data';
 import ProductCard from '@/components/shop/ProductCard';
 import ProductActions, { ImageGallery, ProductTabs } from './ProductActions';
+import { Brush, Box, CheckCircle2, Lock } from 'lucide-react';
 
 export async function generateStaticParams() {
   return PRODUCTS.map((p) => ({ slug: p.slug }));
@@ -155,13 +156,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             {/* Trust grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--sp-3)' }}>
               {[
-                ['🎨', 'Handmade', '100% handcrafted'],
-                ['📦', 'Safe Packing', 'Bubble-wrapped'],
-                ['✅', 'Verified Reviews', 'Real customers'],
-                ['🔒', 'Secure Pay', 'Razorpay encrypted'],
-              ].map(([icon, title, sub]) => (
+                { Icon: Brush,         title: 'Handmade',        sub: '100% handcrafted' },
+                { Icon: Box,           title: 'Safe Packing',    sub: 'Bubble-wrapped' },
+                { Icon: CheckCircle2,  title: 'Verified Reviews', sub: 'Real customers' },
+                { Icon: Lock,          title: 'Secure Pay',      sub: 'Razorpay encrypted' },
+              ].map(({ Icon, title, sub }) => (
                 <div key={title} className="trust-mini-card">
-                  <span style={{ fontSize: '1.2rem' }}>{icon}</span>
+                  <Icon size={20} strokeWidth={1.6} aria-hidden="true" style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>{title}</div>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{sub}</div>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@/lib/data";
 import { formatPrice } from "@/lib/data";
 import { useCart } from "@/components/cart/CartProvider";
+import { waLink } from "@/lib/contact";
 
 /* ─────────────────────────────────────────────────────────────────
    Image Gallery with thumbnail switching
@@ -277,22 +278,39 @@ export default function ProductActions({ product }: ProductActionsProps) {
   const [quantity, setQuantity] = useState(1);
   const [wishlisted, setWishlisted] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
-  const { addItem } = useCart();
+  const { addItem, openCart } = useCart();
 
   const maxQty = Math.min(product.stockCount, 10);
+
+  useEffect(() => {
+    try {
+      const list: string[] = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
+      setWishlisted(list.includes(product.id));
+    } catch { /* ignore */ }
+  }, [product.id]);
 
   const handleAddToCart = () => {
     addItem(product, quantity);
     setAddedToCart(true);
+    openCart();
     setTimeout(() => setAddedToCart(false), 2500);
   };
 
-  const whatsappMsg = encodeURIComponent(
+  const toggleWishlist = () => {
+    try {
+      const list: string[] = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
+      const next = wishlisted ? list.filter(id => id !== product.id) : [...list, product.id];
+      localStorage.setItem('srilatha_wishlist', JSON.stringify(next));
+      setWishlisted(!wishlisted);
+    } catch { /* ignore */ }
+  };
+
+  const whatsappUrl = waLink(
     `Hi Srilatha! I'm interested in "${product.name}" (${formatPrice(product.price)}). Could you tell me more?`
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+    <div id="product-actions" style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)", scrollMarginTop: "90px" }}>
       {/* Qty selector */}
       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-4)" }}>
         <span className="text-label text-muted">Quantity</span>
@@ -344,7 +362,7 @@ export default function ProductActions({ product }: ProductActionsProps) {
       {/* Wishlist */}
       <button
         className={`btn btn-full btn-outline${wishlisted ? "-gold" : ""}`}
-        onClick={() => setWishlisted((w) => !w)}
+        onClick={toggleWishlist}
         aria-pressed={wishlisted}
         style={{ fontSize: "0.875rem" }}
       >
@@ -356,7 +374,7 @@ export default function ProductActions({ product }: ProductActionsProps) {
 
       {/* WhatsApp */}
       <Link
-        href={`https://wa.me/919999999999?text=${whatsappMsg}`}
+        href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="btn btn-whatsapp btn-full"

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/cart/CartProvider';
 import { formatPrice } from '@/lib/data';
+import { createOrder, validateCoupon, verifyPayment, ApiError } from '@/lib/api';
 
 const INDIAN_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
@@ -31,9 +32,13 @@ export default function CheckoutPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [form, setForm] = useState<ShippingForm>(EMPTY_FORM);
   const [coupon, setCoupon] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<string>('');
+  const [discount, setDiscount] = useState(0); // paise
+  const [freeShippingCoupon, setFreeShippingCoupon] = useState(false);
   const [couponMsg, setCouponMsg] = useState('');
+  const [couponBusy, setCouponBusy] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [payError, setPayError] = useState('');
 
   // Load Razorpay script
   useEffect(() => {
@@ -52,17 +57,36 @@ export default function CheckoutPage() {
     } catch {}
   }, []);
 
-  const shipping = subtotal >= 99900 ? 0 : 9900;
-  const discountAmt = Math.round(subtotal * discount);
-  const total = subtotal - discountAmt + shipping;
+  const baseShipping = subtotal >= 99900 ? 0 : 9900;
+  const shipping = freeShippingCoupon ? 0 : baseShipping;
+  const total = Math.max(0, subtotal - discount + shipping);
 
-  const applyCoupon = () => {
-    if (coupon.trim().toUpperCase() === 'FIRST10') {
-      setDiscount(0.1);
-      setCouponMsg('✓ 10% discount applied!');
-    } else {
+  const applyCoupon = async () => {
+    const code = coupon.trim().toUpperCase();
+    if (!code) return;
+    setCouponBusy(true);
+    setCouponMsg('');
+    try {
+      const result = await validateCoupon({ code, subtotal, shipping: baseShipping });
+      if (result.valid) {
+        setDiscount(result.discount ?? 0);
+        setFreeShippingCoupon(!!result.freeShipping);
+        setAppliedCoupon(result.code ?? code);
+        setCouponMsg(`✓ ${result.description || 'Coupon applied'}`);
+      } else {
+        setDiscount(0);
+        setFreeShippingCoupon(false);
+        setAppliedCoupon('');
+        setCouponMsg(`✗ ${result.message ?? 'Invalid coupon code.'}`);
+      }
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Could not check coupon. Try again.';
       setDiscount(0);
-      setCouponMsg('✗ Invalid coupon code.');
+      setFreeShippingCoupon(false);
+      setAppliedCoupon('');
+      setCouponMsg(`✗ ${msg}`);
+    } finally {
+      setCouponBusy(false);
     }
   };
 
@@ -71,39 +95,74 @@ export default function CheckoutPage() {
     return req.every(f => form[f].trim().length > 0) && /^\d{6}$/.test(form.pincode);
   };
 
-  const handleRazorpay = () => {
+  const handleRazorpay = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
-
-    const orderId = `SA-${Date.now().toString().slice(-6)}`;
+    setPayError('');
 
     if (form.saveAddress) {
-      try { localStorage.setItem('srilatha_address', JSON.stringify(form)); } catch {}
+      try { localStorage.setItem('srilatha_address', JSON.stringify(form)); } catch { /* ignore */ }
     }
 
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-      amount: total,
-      currency: 'INR',
+    // 1. Server creates the Razorpay order with server-computed amount.
+    let order;
+    try {
+      order = await createOrder({
+        items: items.map(i => ({
+          productId: i.product.id,
+          name: i.product.name,
+          qty: i.qty,
+          price: i.product.price,
+        })),
+        customer: { name: form.fullName, email: form.email, phone: form.phone },
+        address: { line1: form.address1, city: form.city, state: form.state, pincode: form.pincode },
+        ...(appliedCoupon ? { couponCode: appliedCoupon } : {}),
+      });
+    } catch (err) {
+      setIsProcessing(false);
+      const msg = err instanceof ApiError ? err.message : 'Could not start payment. Please try again.';
+      setPayError(msg);
+      return;
+    }
+
+    // 2. Open Razorpay with the server-issued order id.
+    type RzpResponse = { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string };
+    const rzpOptions = {
+      key: order.key,
+      amount: order.amount,
+      currency: order.currency,
       name: 'Srilatha Art',
-      description: `Order ${orderId} — Handmade Art`,
+      description: `Order ${order.orderId} — Handmade Art`,
       image: '/logo.png',
+      order_id: order.razorpayOrderId,
       prefill: { name: form.fullName, email: form.email, contact: form.phone },
       notes: { address: form.address1, city: form.city, state: form.state },
-      theme: { color: '#00A3FF' },
-      handler: (response: { razorpay_payment_id: string }) => {
-        clearCart();
-        router.push(`/order-success?paymentId=${response.razorpay_payment_id}&orderId=${orderId}`);
+      theme: { color: '#00A3FF' }, // matches --accent-blue brand primary
+      handler: async (response: RzpResponse) => {
+        // 3. Server verifies the HMAC signature before we trust the payment.
+        try {
+          await verifyPayment(order.orderId, {
+            razorpayOrderId: response.razorpay_order_id,
+            razorpayPaymentId: response.razorpay_payment_id,
+            razorpaySignature: response.razorpay_signature,
+          });
+          clearCart();
+          router.push(`/order-success?orderId=${encodeURIComponent(order.orderId)}&paymentId=${encodeURIComponent(response.razorpay_payment_id)}`);
+        } catch (err) {
+          const msg = err instanceof ApiError ? err.message : 'Payment received but verification failed. We are checking — please don\'t pay again.';
+          setPayError(msg);
+          setIsProcessing(false);
+        }
       },
       modal: { ondismiss: () => setIsProcessing(false) },
     };
 
     try {
-      const rzp = new (window as unknown as { Razorpay: new (opts: typeof options) => { open: () => void } }).Razorpay(options);
+      const rzp = new (window as unknown as { Razorpay: new (opts: typeof rzpOptions) => { open: () => void } }).Razorpay(rzpOptions);
       rzp.open();
     } catch {
       setIsProcessing(false);
-      alert('Payment gateway not available. Please try again.');
+      setPayError('Payment gateway not available. Please try again.');
     }
   };
 
@@ -243,16 +302,18 @@ export default function CheckoutPage() {
                 </div>
 
                 {/* Coupon */}
-                <div style={{ display: 'flex', gap: 'var(--sp-2)', marginBottom: 'var(--sp-6)' }}>
+                <div style={{ display: 'flex', gap: 'var(--sp-2)', marginBottom: 'var(--sp-2)' }}>
                   <input
-                    type="text" placeholder="Coupon code (e.g. FIRST10)" value={coupon}
+                    type="text" placeholder="Coupon code" value={coupon}
                     onChange={e => { setCoupon(e.target.value); setCouponMsg(''); }}
                     className="form-input" style={{ flex: 1 }}
                   />
-                  <button onClick={applyCoupon} className="btn btn-secondary">Apply</button>
+                  <button onClick={applyCoupon} disabled={couponBusy || !coupon.trim()} className="btn btn-secondary">
+                    {couponBusy ? 'Checking…' : 'Apply'}
+                  </button>
                 </div>
                 {couponMsg && (
-                  <p style={{ fontSize: '0.82rem', color: couponMsg.startsWith('✓') ? 'var(--accent-green)' : '#EF4444', marginTop: -'var(--sp-4)', marginBottom: 'var(--sp-4)' }}>
+                  <p style={{ fontSize: '0.82rem', color: couponMsg.startsWith('✓') ? 'var(--accent-green)' : '#EF4444', marginBottom: 'var(--sp-4)' }}>
                     {couponMsg}
                   </p>
                 )}
@@ -292,6 +353,9 @@ export default function CheckoutPage() {
                 >
                   {isProcessing ? '⏳ Opening Payment...' : `💳 Pay ${formatPrice(total)}`}
                 </button>
+                {payError && (
+                  <p style={{ fontSize: '0.85rem', color: '#EF4444', marginBottom: 'var(--sp-3)' }}>{payError}</p>
+                )}
                 <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}>
                   ← Back to Review
                 </button>
@@ -341,9 +405,14 @@ export default function CheckoutPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                   <span>Subtotal</span><span>{formatPrice(subtotal)}</span>
                 </div>
-                {discountAmt > 0 && (
+                {discount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--accent-green)' }}>
-                    <span>Coupon (FIRST10)</span><span>−{formatPrice(discountAmt)}</span>
+                    <span>Coupon ({appliedCoupon})</span><span>−{formatPrice(discount)}</span>
+                  </div>
+                )}
+                {freeShippingCoupon && baseShipping > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--accent-green)' }}>
+                    <span>Coupon ({appliedCoupon})</span><span>Free shipping</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: shipping === 0 ? 'var(--accent-green)' : 'var(--text-secondary)' }}>
@@ -373,7 +442,7 @@ export default function CheckoutPage() {
         .checkout-grid { grid-template-columns: 1fr; }
         @media(min-width: 1024px) { .checkout-grid { grid-template-columns: 1.4fr 1fr; } }
         .form-label { display:block; font-size:0.78rem; font-weight:600; color:var(--text-secondary); margin-bottom:var(--sp-1); text-transform:uppercase; letter-spacing:0.08em; }
-        .form-input { width:100%; padding:12px 14px; border:1.5px solid var(--border-mid); border-radius:var(--r-lg); background:var(--bg-elevated); color:var(--text-primary); font-size:0.9rem; outline:none; transition:border-color 0.2s; box-sizing:border-box; }
+        .form-input { width:100%; padding:12px 14px; border:1.5px solid var(--border-mid); border-radius:var(--r-lg); background:var(--bg-elevated); color:var(--text-primary); font-size:1rem; outline:none; transition:border-color 0.2s; box-sizing:border-box; font-family:inherit; }
         .form-input:focus { border-color:var(--accent-blue); box-shadow:0 0 0 3px rgba(0,163,255,0.1); }
         .form-input::placeholder { color:var(--text-dim); }
         .form-grid-2 { grid-template-columns:1fr 1fr; }

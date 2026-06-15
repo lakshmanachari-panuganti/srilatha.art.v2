@@ -333,7 +333,7 @@ export const REVIEWS: Review[] = [
     id: "r003",
     productId: "p003",
     author: "Meera Iyer",
-    city: "Chennai",
+    city: "Coimbatore",
     rating: 5,
     title: "The triptych is EVERYTHING",
     body: "The ocean wave triptych arrived safely packed and looks incredible on my dining room wall. It's large, bold and draws every guest's eye immediately. Couldn't be happier.",

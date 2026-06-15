@@ -1,14 +1,20 @@
 'use client';
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { waLink } from '@/lib/contact';
+
+const HIDDEN_ON = ['/cart', '/checkout', '/login', '/admin'];
 
 export default function WhatsAppFloat() {
   const [tooltipVisible, setTooltipVisible] = useState(false);
+  const pathname = usePathname();
+  if (HIDDEN_ON.some(p => pathname === p || pathname.startsWith(`${p}/`))) return null;
   return (
     <div className="whatsapp-float-wrapper">
       <span className="whatsapp-pulse-ring" />
       <span className="whatsapp-pulse-ring delay" />
       <a
-        href="https://wa.me/919876543210?text=Hi!%20I'm%20interested%20in%20your%20handmade%20art"
+        href={waLink("Hi! I'm interested in your handmade art")}
         target="_blank" rel="noopener noreferrer"
         className="whatsapp-float"
         aria-label="Chat with us on WhatsApp"

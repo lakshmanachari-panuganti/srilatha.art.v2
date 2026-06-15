@@ -85,7 +85,7 @@ WHATSAPP_WABA_ID=your_WHATSAPP_WABA_ID_here
 # ─── App Settings ─────────────────────────────────────────────────────────────
 NEXT_PUBLIC_API_URL=http://localhost:7071/api
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_WHATSAPP_NUMBER=919876543210
+NEXT_PUBLIC_WHATSAPP_NUMBER=919052380325
 
 # ─── JWT Secret (generate a strong random string) ─────────────────────────────
 JWT_SECRET=your_strong_jwt_secret_here_min_32_chars

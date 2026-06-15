@@ -166,7 +166,10 @@ export default function CartDrawer() {
               <Link href="/checkout" onClick={closeCart} className="btn btn-primary btn-full btn-lg pulse-glow">
                 ⚡ Proceed to Checkout
               </Link>
-              <button onClick={closeCart} className="btn btn-secondary btn-full">
+              <Link href="/cart" onClick={closeCart} className="btn btn-secondary btn-full">
+                View Full Cart
+              </Link>
+              <button onClick={closeCart} className="btn btn-ghost btn-full" style={{ fontSize: '0.78rem' }}>
                 Continue Shopping
               </button>
             </div>

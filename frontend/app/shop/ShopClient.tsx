@@ -4,16 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { PRODUCTS, formatPrice } from '@/lib/data';
 import ProductCard from '@/components/shop/ProductCard';
 import SortSelect from './SortSelect';
-
-const CATEGORY_PILLS = [
-  { id: 'all',     label: '🛍️ All' },
-  { id: 'resin',   label: '🫗 Resin Art' },
-  { id: 'lippan',  label: '🪡 Lippan Art' },
-  { id: 'mandala', label: '⭕ Dot Mandala' },
-  { id: 'kolam',   label: '🌸 Kolam Art' },
-  { id: 'wedding', label: '💍 Wedding Decor' },
-  { id: 'gifts',   label: '🎁 Gifts' },
-];
+import { waLink } from '@/lib/contact';
+import { CATEGORY_META } from '@/lib/categoryIcons';
 
 export default function ShopClient() {
   const searchParams = useSearchParams();
@@ -72,7 +64,8 @@ export default function ShopClient() {
 
       {/* Category Pills */}
       <div className="category-pills" role="navigation" aria-label="Filter by category">
-        {CATEGORY_PILLS.map(cat => {
+        {CATEGORY_META.map(cat => {
+          const Icon = cat.Icon;
           const count = cat.id === 'all'
             ? PRODUCTS.length
             : PRODUCTS.filter(p => p.category.toLowerCase().includes(cat.id)).length;
@@ -82,7 +75,9 @@ export default function ShopClient() {
               href={cat.id === 'all' ? '/shop' : `/shop?category=${cat.id}`}
               className={`category-pill${activeCategory === cat.id ? ' active' : ''}`}
               aria-current={activeCategory === cat.id ? 'page' : undefined}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
+              <Icon size={14} aria-hidden="true" />
               {cat.label}
               <span style={{ fontSize: '0.68rem', opacity: 0.65, marginLeft: 4 }}>({count})</span>
             </Link>
@@ -145,7 +140,7 @@ export default function ShopClient() {
           <Link href="/custom-order" className="btn btn-primary btn-lg">
             Request Custom Order →
           </Link>
-          <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp btn-lg">
+          <a href={waLink('Hi! I have a custom-order question.')} target="_blank" rel="noopener noreferrer" className="btn btn-whatsapp btn-lg">
             Chat on WhatsApp
           </a>
         </div>

@@ -2,6 +2,9 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
+export const GOOGLE_CLIENT_ID_CONFIGURED =
+  Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
 export interface User {
   email: string;
   name: string;
