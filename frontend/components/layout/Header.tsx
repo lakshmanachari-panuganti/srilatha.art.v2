@@ -36,6 +36,7 @@ export default function Header() {
   const { user, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileCollectionsOpen, setMobileCollectionsOpen] = useState(false);
 
   const collectionsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -269,7 +270,7 @@ export default function Header() {
       {/* Mobile Drawer */}
       <div
         className={`mobile-nav-overlay ${drawerOpen ? 'open' : ''}`}
-        onClick={() => setDrawerOpen(false)}
+        onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }}
         aria-hidden="true"
       />
 
@@ -280,12 +281,12 @@ export default function Header() {
         aria-modal="true"
       >
         <div className="mobile-nav-header">
-          <Link href="/" className="header-logo" onClick={() => setDrawerOpen(false)}>
+          <Link href="/" className="header-logo" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }}>
             <div className="header-logo-mark">🎨</div>
             <div className="header-logo-text">Srilatha<span>Art</span></div>
           </Link>
           <button
-            onClick={() => setDrawerOpen(false)}
+            onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }}
             aria-label="Close menu"
             style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.4rem', lineHeight: 1 }}
           >
@@ -294,29 +295,47 @@ export default function Header() {
         </div>
 
         {/* Mobile CTA */}
-        <Link href="/shop?category=resin" onClick={() => setDrawerOpen(false)} className="btn btn-primary btn-full" style={{ marginBottom: 'var(--sp-5)' }}>
+        <Link href="/shop?category=resin" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} className="btn btn-primary btn-full" style={{ marginBottom: 'var(--sp-5)' }}>
           ⚡ Shop Resin Art
         </Link>
 
         <nav className="mobile-nav-links">
-          {NAV_LINKS.map(link => (
-            <Link key={link.href} href={link.href} onClick={() => setDrawerOpen(false)} className={isActive(link.href) ? 'active' : ''}>
+          {NAV_LINKS.filter(link => link.href !== '/').map(link => (
+            <Link key={link.href} href={link.href} onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} className={isActive(link.href) ? 'active' : ''}>
               {link.label}
             </Link>
           ))}
 
-          {/* Collections sub-items */}
-          <div style={{ paddingTop: 'var(--sp-2)', borderTop: '1px solid var(--border)', marginTop: 'var(--sp-2)' }}>
-            <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 'var(--sp-2)', padding: '0 var(--sp-2)' }}>Collections</p>
-            {COLLECTIONS_LINKS.map(c => (
-              <Link key={c.href} href={c.href} onClick={() => setDrawerOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' }}>
-                {c.label}
-                {c.badge && <span className="badge badge-gold">{c.badge}</span>}
-              </Link>
-            ))}
+          {/* Collapsible Collections */}
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 'var(--sp-2)', paddingTop: 'var(--sp-2)' }}>
+            <button 
+              onClick={() => setMobileCollectionsOpen(!mobileCollectionsOpen)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: '12px 16px', fontSize: '1rem', fontWeight: 500, color: 'var(--text-primary)', cursor: 'pointer' }}
+            >
+              Collections
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: mobileCollectionsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s ease' }}>
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+            
+            <div style={{ 
+              overflow: 'hidden', 
+              transition: 'max-height 0.3s ease-in-out, opacity 0.3s ease-in-out',
+              maxHeight: mobileCollectionsOpen ? '500px' : '0',
+              opacity: mobileCollectionsOpen ? 1 : 0
+            }}>
+              <div style={{ padding: '0 var(--sp-4) var(--sp-2)', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+                {COLLECTIONS_LINKS.map(c => (
+                  <Link key={c.href} href={c.href} onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    {c.label}
+                    {c.badge && <span className="badge badge-gold" style={{ transform: 'scale(0.8)', transformOrigin: 'left center' }}>{c.badge}</span>}
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <Link href="/sale" onClick={() => setDrawerOpen(false)} style={{ color: '#FF6B6B' }}>🔥 Sale</Link>
+          <Link href="/sale" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} style={{ color: '#FF6B6B', padding: '12px 16px', display: 'block', fontWeight: 500 }}>🔥 Sale</Link>
         </nav>
 
         {/* Mobile footer */}
@@ -343,9 +362,8 @@ export default function Header() {
 
       <style>{`
         #header-search-btn, #header-wishlist-btn { display: none; }
-        #header-account-btn { display: none; }
         @media (min-width: 1024px) {
-          #header-search-btn, #header-wishlist-btn, #header-account-btn { display: flex; }
+          #header-search-btn, #header-wishlist-btn { display: flex; }
           .hamburger-btn { display: none !important; }
           #header-cta-btn { display: inline-flex; }
         }
