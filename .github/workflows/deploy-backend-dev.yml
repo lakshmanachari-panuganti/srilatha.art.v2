@@ -1,0 +1,85 @@
+name: Deploy Backend · DEV
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend-dev.yml'
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'backend/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: backend
+  AZURE_FUNCTIONAPP_NAME: func-srilathaartv2-dev
+  AZURE_RESOURCE_GROUP: rg-srilathaartv2-dev
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Backend - Dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for OIDC token exchange with Azure
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          lfs: false
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build TypeScript
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          npm run build
+          npm prune --omit=dev
+
+      - name: Package backend as zip
+        if: github.event_name != 'pull_request'
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: zip -r -q "$RUNNER_TEMP/deploy.zip" . -x ".git/*" ".github/*" "src/*" "*.ts" "tsconfig.json"
+
+      - name: Azure login (OIDC)
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_DEV }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Functions (zip deploy)
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          az functionapp deployment source config-zip \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name           "$AZURE_FUNCTIONAPP_NAME" \
+            --src            "$RUNNER_TEMP/deploy.zip"
+          echo "✅ Backend DEV deploy succeeded"

@@ -1,11 +1,133 @@
+# ════════════════════════════════════════════════════════════════
+#  Srilatha Art v2 — .gitignore
+#  Covers: Next.js frontend · Azure Functions backend · Infra scripts
+# ════════════════════════════════════════════════════════════════
+
+
+# ── Dependencies ─────────────────────────────────────────────────
 node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+
+# ── Build outputs ────────────────────────────────────────────────
+
+# Next.js
 frontend/.next/
 frontend/out/
+frontend/build/
+
+# Azure Functions (TypeScript compiled output)
 backend/dist/
+
+# Generic
+build/
+dist/
+
+
+# ── Environment & Secrets ─────────────────────────────────────────
+# NEVER commit these — they contain API keys, connection strings, passwords
+
 .env
 .env.local
+.env.development
+.env.production
+.env.staging
 .env.*.local
+
+# Azure Functions local settings (contains storage connection strings)
 backend/local.settings.json
-.DS_Store
-Thumbs.db
+
+# Azure CLI temp PEM cert files written by Azure-Connectivity.ps1
+*.pem
+az-sp-cert-*.pem
+
+
+# ── Next.js cache & telemetry ────────────────────────────────────
+frontend/.next/
+frontend/.vercel
+frontend/next-env.d.ts
+
+
+# ── Azure Functions ───────────────────────────────────────────────
+backend/.funcignore
+backend/bin/
+backend/obj/
+
+
+# ── Logs ──────────────────────────────────────────────────────────
 *.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+
+# ── OS files ──────────────────────────────────────────────────────
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+
+# ── IDE & Editor ──────────────────────────────────────────────────
+
+# VS Code (keep .vscode/extensions.json and .vscode/settings.json
+# if you want to share workspace settings with the team — remove
+# those lines below if so)
+.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains (WebStorm, Rider, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim / Emacs swap files
+*.swp
+*.swo
+*~
+
+
+# ── Testing ───────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+playwright-report/
+playwright/.cache/
+
+
+# ── Deployment artifacts ──────────────────────────────────────────
+# Temp zip files created by Deploy-Backend.ps1
+*.zip
+
+# SWA CLI
+.swa/
+
+
+# ── Miscellaneous ─────────────────────────────────────────────────
+*.tsbuildinfo
+.turbo/
+.cache/
+tmp/
+temp/

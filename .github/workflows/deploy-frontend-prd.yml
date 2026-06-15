@@ -1,0 +1,106 @@
+name: Deploy Frontend · PRD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend-prd.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-prd
+  cancel-in-progress: false   # never cancel a production deploy mid-flight
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: frontend
+  API_BASE_URL: https://func-srilathaartv2-prd.azurewebsites.net/api
+  SITE_URL: https://www.srilatha.art
+  FUNCTION_APP_NAME: func-srilathaartv2-prd
+  FUNCTION_APP_RG: rg-srilathaartv2-prd
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Frontend - Prd
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ env.SITE_URL }}
+    permissions:
+      contents: read
+      id-token: write        # required for OIDC token exchange with Azure
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          lfs: false
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Type-check
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run typecheck
+
+      # ── Fetch RAZORPAY_KEY_ID from Function App settings before build ────────
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_PRD }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch Razorpay Key ID from Function App settings
+        run: |
+          RAZORPAY_KEY_ID=$(az functionapp config appsettings list \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$FUNCTION_APP_RG" \
+            --query "[?name=='RAZORPAY_KEY_ID'].value" \
+            --output tsv)
+          if [ -z "$RAZORPAY_KEY_ID" ]; then
+            echo "::error::RAZORPAY_KEY_ID not found in Function App settings for $FUNCTION_APP_NAME"
+            exit 1
+          fi
+          echo "::add-mask::$RAZORPAY_KEY_ID"
+          echo "RAZORPAY_KEY_ID=$RAZORPAY_KEY_ID" >> $GITHUB_ENV
+
+      # ── Build Next.js with secrets from Key Vault ─────────────────────────
+      - name: Build (Next.js)
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ env.RAZORPAY_KEY_ID }}
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PRD }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: ${{ env.WORKING_DIRECTORY }}/out
+          config_file_location: ${{ env.WORKING_DIRECTORY }}
+          skip_app_build: true
+          skip_api_build: true
+          production_branch: main
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
