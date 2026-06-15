@@ -1,0 +1,11 @@
+node_modules/
+frontend/.next/
+frontend/out/
+backend/dist/
+.env
+.env.local
+.env.*.local
+backend/local.settings.json
+.DS_Store
+Thumbs.db
+*.log
