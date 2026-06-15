@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import AnnouncementBar from '@/components/layout/AnnouncementBar';
+
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import WhatsAppFloat from '@/components/layout/WhatsAppFloat';
 import { CartProvider } from '@/components/cart/CartProvider';
+import { AuthProvider } from '@/components/auth/AuthProvider';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 // NOTE: We use a <link> tag for Google Fonts instead of next/font/google
 // because next/font downloads fonts at build time which fails on networks
@@ -66,15 +68,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <CartProvider>
-          <AnnouncementBar />
-          <Header />
-          <main id="main-content">
-            {children}
-          </main>
-          <Footer />
-          <WhatsAppFloat />
-        </CartProvider>
+        <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "demo-client-id"}>
+          <AuthProvider>
+            <CartProvider>
+              <Header />
+              <main id="main-content">
+                {children}
+              </main>
+              <Footer />
+              <WhatsAppFloat />
+            </CartProvider>
+          </AuthProvider>
+        </GoogleOAuthProvider>
       </body>
     </html>
   );

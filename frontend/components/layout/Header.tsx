@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/components/cart/CartProvider';
 import CartDrawer from '@/components/cart/CartDrawer';
+import AuthModal from '@/components/auth/AuthModal';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const COLLECTIONS_LINKS = [
   { href: '/shop?category=resin',   label: '🫗 Resin Art',     badge: 'PRIMARY' },
@@ -29,12 +31,22 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [collectionsOpen, setCollectionsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  
+  // Auth state
+  const { user, logout } = useAuth();
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+
   const collectionsRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (collectionsRef.current && !collectionsRef.current.contains(e.target as Node)) {
         setCollectionsOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -48,9 +60,9 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = drawerOpen ? 'hidden' : '';
+    document.body.style.overflow = drawerOpen || authModalOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [drawerOpen]);
+  }, [drawerOpen, authModalOpen]);
 
   const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
@@ -176,13 +188,45 @@ export default function Header() {
               )}
             </button>
 
-            {/* Account — desktop only */}
-            <Link href="/account" className="header-icon-btn" aria-label="Account" id="header-account-btn">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-            </Link>
+            {/* Account */}
+            <div style={{ position: 'relative' }} ref={userMenuRef}>
+              <button 
+                onClick={() => user ? setUserMenuOpen(!userMenuOpen) : setAuthModalOpen(true)} 
+                className="header-icon-btn" 
+                aria-label="Account" 
+                id="header-account-btn"
+              >
+                {user && user.picture ? (
+                  <img src={user.picture} alt="Profile" style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--border-mid)' }} />
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                )}
+              </button>
+
+              {userMenuOpen && user && (
+                <div className="header-nav-dropdown-menu" style={{ opacity: 1, pointerEvents: 'all', right: 0, left: 'auto', minWidth: 200 }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', marginBottom: 8 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{user.name || 'User'}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</div>
+                  </div>
+                  <Link href="/account" onClick={() => setUserMenuOpen(false)} style={{ display: 'block', padding: '8px 16px', fontSize: '0.85rem' }}>
+                    My Orders
+                  </Link>
+                  <Link href="/account/settings" onClick={() => setUserMenuOpen(false)} style={{ display: 'block', padding: '8px 16px', fontSize: '0.85rem' }}>
+                    Account Settings
+                  </Link>
+                  <button 
+                    onClick={() => { logout(); setUserMenuOpen(false); }}
+                    style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '8px 16px', fontSize: '0.85rem', color: '#EF4444', cursor: 'pointer', marginTop: 4 }}
+                  >
+                    Log Out
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* CTA button — desktop: "Shop Now", mobile: hidden (bottom bar handles it) */}
             <Link
@@ -291,6 +335,11 @@ export default function Header() {
       </aside>
 
       <CartDrawer />
+
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)} 
+      />
 
       <style>{`
         #header-search-btn, #header-wishlist-btn { display: none; }

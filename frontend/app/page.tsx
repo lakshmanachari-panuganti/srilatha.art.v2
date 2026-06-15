@@ -85,9 +85,7 @@ export default function HomePage() {
 
             <div className="hero-trust">
               <div className="hero-trust-item"><span className="dot" />100% Handmade</div>
-              <div className="hero-trust-item"><span className="dot" />Ships in 5–7 days</div>
-              <div className="hero-trust-item"><span className="dot" />Free Returns</div>
-              <div className="hero-trust-item"><span className="dot" />Free shipping above ₹999</div>
+              <div className="hero-trust-item"><span className="dot" />Pan-India Delivery</div>
             </div>
           </div>
         </div>
@@ -356,28 +354,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ─── MOBILE BOTTOM CTA BAR ─────────────────────────────── */}
-      <div style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-        background: 'rgba(9,11,16,0.95)', backdropFilter: 'blur(16px)',
-        borderTop: '1px solid var(--border-accent)',
-        padding: '12px 16px 16px', display: 'flex', gap: 10,
-        alignItems: 'center', justifyContent: 'space-between',
-      }} className="mobile-bottom-bar">
-        <div>
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
-            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-green)', marginRight: 4, boxShadow: '0 0 6px var(--accent-green)' }} />
-            Free shipping above ₹999
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Use code <strong style={{ color: 'var(--accent-gold)' }}>FIRST10</strong> for 10% off</div>
-        </div>
-        <Link href="/shop" className="btn btn-primary btn-sm" style={{ flexShrink: 0 }}>
-          Shop Now →
-        </Link>
-      </div>
 
-      {/* Spacer for bottom bar on mobile */}
-      <div style={{ height: 72 }} className="mobile-bottom-spacer" />
 
       <style>{`
         @media (min-width: 768px) {
