@@ -282,7 +282,7 @@ export default function ProductActions({ product }: ProductActionsProps) {
   const maxQty = Math.min(product.stockCount, 10);
 
   const handleAddToCart = () => {
-    addItem({ product, quantity });
+    addItem(product, quantity);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2500);
   };

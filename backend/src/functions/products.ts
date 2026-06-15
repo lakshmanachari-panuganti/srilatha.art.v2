@@ -65,8 +65,6 @@ async function listProducts(
     const page = Math.max(1, parseInt(request.query.get('page') ?? '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(request.query.get('limit') ?? '20', 10)));
 
-    const client = getTableClient('products', CONNECTION_STRING);
-
     // Build OData filter
     const filters: string[] = [];
     if (category) {
@@ -78,7 +76,9 @@ async function listProducts(
     }
     const filter = filters.length > 0 ? filters.join(' and ') : undefined;
 
-    const allEntities = await queryEntitiesAll<Product>(client, filter);
+    const allEntities = filter 
+      ? await queryEntities<Product>('products', filter)
+      : await queryEntitiesAll<Product>('products');
 
     const total = allEntities.length;
     const start = (page - 1) * limit;
@@ -107,9 +107,8 @@ async function getProductBySlug(
       return json({ error: 'slug is required' }, 400);
     }
 
-    const client = getTableClient('products', CONNECTION_STRING);
     const filter = `slug eq '${slug}'`;
-    const results = await queryEntities<Product>(client, filter);
+    const results = await queryEntities<Product>('products', filter);
 
     if (!results || results.length === 0) {
       return json({ error: 'Product not found' }, 404);
@@ -127,7 +126,7 @@ async function getProductBySlug(
 // ---------------------------------------------------------------------------
 
 function normalizeProduct(entity: Product): Record<string, unknown> {
-  const { partitionKey, rowKey, etag, timestamp, ...rest } = entity as Product & {
+  const { partitionKey, rowKey, etag, timestamp, category: _category, ...rest } = entity as Product & {
     etag?: string;
     timestamp?: unknown;
   };

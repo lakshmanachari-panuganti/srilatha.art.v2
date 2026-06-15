@@ -151,7 +151,6 @@ async function createOrder(
     const razorpayOrderId = razorpayOrder.id;
 
     // Save order to Table Storage
-    const ordersClient = getTableClient('orders', CONNECTION_STRING);
     const orderEntity: OrderEntity = {
       partitionKey: 'pending',
       rowKey: orderId,
@@ -165,13 +164,12 @@ async function createOrder(
       createdAt: new Date().toISOString(),
       ...(couponCode ? { couponCode } : {}),
     };
-    await upsertEntity(ordersClient, orderEntity);
+    await upsertEntity('orders', orderEntity);
 
     // Save order items to Table Storage
-    const itemsClient = getTableClient('orderItems', CONNECTION_STRING);
     await Promise.all(
       items.map((item, index) =>
-        upsertEntity(itemsClient, {
+        upsertEntity('orderItems', {
           partitionKey: orderId,
           rowKey: `${item.productId}-${index}`,
           productId: item.productId,
@@ -225,12 +223,11 @@ async function getOrder(
     }
 
     // Search across all status partitions
-    const ordersClient = getTableClient('orders', CONNECTION_STRING);
     let orderEntity: OrderEntity | null = null;
 
     for (const status of ORDER_STATUSES) {
       const filter = `PartitionKey eq '${status}' and RowKey eq '${orderId}'`;
-      const results = await queryEntities<OrderEntity>(ordersClient, filter);
+      const results = await queryEntities<OrderEntity>('orders', filter);
       if (results && results.length > 0) {
         orderEntity = results[0];
         break;
@@ -242,9 +239,8 @@ async function getOrder(
     }
 
     // Fetch order items
-    const itemsClient = getTableClient('orderItems', CONNECTION_STRING);
     const itemsFilter = `PartitionKey eq '${orderId}'`;
-    const items = await queryEntities(itemsClient, itemsFilter);
+    const items = await queryEntities('orderItems', itemsFilter);
 
     return json({
       ...normalizeOrder(orderEntity),
@@ -298,12 +294,11 @@ async function verifyPayment(
     }
 
     // Find the order in 'pending' partition first, then others
-    const ordersClient = getTableClient('orders', CONNECTION_STRING);
     let orderEntity: OrderEntity | null = null;
 
     for (const status of ORDER_STATUSES) {
       const filter = `PartitionKey eq '${status}' and RowKey eq '${orderId}'`;
-      const results = await queryEntities<OrderEntity>(ordersClient, filter);
+      const results = await queryEntities<OrderEntity>('orders', filter);
       if (results && results.length > 0) {
         orderEntity = results[0];
         break;
@@ -317,21 +312,21 @@ async function verifyPayment(
     const previousStatus = orderEntity.partitionKey;
 
     // Move order: upsert with new partitionKey='confirmed', then delete old entry
+    const { status: _status, partitionKey: _pk, ...restOrder } = orderEntity;
     const confirmedEntity: OrderEntity = {
-      ...orderEntity,
+      ...restOrder,
       partitionKey: 'confirmed',
       status: 'confirmed',
     };
-    await upsertEntity(ordersClient, confirmedEntity);
+    await upsertEntity('orders', confirmedEntity);
 
     // Delete old entity only if it had a different partition
     if (previousStatus !== 'confirmed') {
-      await deleteEntity(ordersClient, previousStatus, orderId);
+      await deleteEntity('orders', previousStatus, orderId);
     }
 
     // Record payment event in orderEvents table
-    const eventsClient = getTableClient('orderEvents', CONNECTION_STRING);
-    await upsertEntity(eventsClient, {
+    await upsertEntity('orderEvents', {
       partitionKey: orderId,
       rowKey: `payment-${Date.now()}`,
       eventType: 'payment_verified',

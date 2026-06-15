@@ -248,7 +248,7 @@ export default function HomePage() {
             {REVIEWS.slice(0, 3).map((r) => (
               <div key={r.id} className="testimonial-card">
                 <div className="testimonial-stars">{'★'.repeat(r.rating)}</div>
-                <p className="testimonial-text">&ldquo;{r.comment}&rdquo;</p>
+                <p className="testimonial-text">&ldquo;{r.body}&rdquo;</p>
                 <div className="testimonial-author">
                   <div className="testimonial-avatar">
                     {r.author.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}

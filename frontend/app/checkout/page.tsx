@@ -167,7 +167,7 @@ export default function CheckoutPage() {
                       <input
                         type={f.type}
                         placeholder={f.placeholder}
-                        value={(form as Record<string, string>)[f.name]}
+                        value={String((form as any)[f.name])}
                         onChange={e => setForm(prev => ({ ...prev, [f.name]: e.target.value }))}
                         className="form-input"
                         required

@@ -23,7 +23,7 @@ export async function upsertEntity<T extends { partitionKey: string; rowKey: str
   await client.upsertEntity(entity, 'Replace');
 }
 
-export async function getEntity<T>(
+export async function getEntity<T extends object>(
   tableName: string,
   partitionKey: string,
   rowKey: string
@@ -37,7 +37,7 @@ export async function getEntity<T>(
   }
 }
 
-export async function queryEntities<T>(tableName: string, filter: string): Promise<T[]> {
+export async function queryEntities<T extends object>(tableName: string, filter: string): Promise<T[]> {
   const client = getTableClient(tableName);
   const results: T[] = [];
   const iter = client.listEntities<T>({ queryOptions: { filter } });
@@ -56,7 +56,7 @@ export async function deleteEntity(
   await client.deleteEntity(partitionKey, rowKey);
 }
 
-export async function queryEntitiesAll<T>(tableName: string): Promise<T[]> {
+export async function queryEntitiesAll<T extends object>(tableName: string): Promise<T[]> {
   const client = getTableClient(tableName);
   const results: T[] = [];
   const iter = client.listEntities<T>();
