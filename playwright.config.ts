@@ -27,7 +27,6 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_API_URL: 'http://localhost:7099/api',
-      NEXT_PUBLIC_GOOGLE_CLIENT_ID: 'test-google-client-id.apps.googleusercontent.com',
       NEXT_PUBLIC_SITE_URL: `http://localhost:${PORT}`,
     },
   },

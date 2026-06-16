@@ -8,7 +8,8 @@ import WhatsAppFloat from '@/components/layout/WhatsAppFloat';
 import { CartProvider } from '@/components/cart/CartProvider';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { AdminAuthProvider } from '@/components/admin/AdminAuthProvider';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+import { RuntimeConfigProvider } from '@/components/runtime/RuntimeConfigProvider';
+import GoogleAuthGate from '@/components/runtime/GoogleAuthGate';
 
 // NOTE: We use a <link> tag for Google Fonts instead of next/font/google
 // because next/font downloads fonts at build time which fails on networks
@@ -20,18 +21,6 @@ export const viewport: Viewport = {
   initialScale: 1,
   themeColor: '#090B10',
 };
-
-function resolveGoogleClientId(): string {
-  const id = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-  if (id) return id;
-  // Don't crash the build/SSG — Google sign-in pages surface this at click time
-  // via the IS_GOOGLE_CONFIGURED helper below. But warn loudly in the server log
-  // so it's obvious during build.
-  if (typeof console !== 'undefined') {
-    console.warn('[auth] NEXT_PUBLIC_GOOGLE_CLIENT_ID is not set — Google sign-in will fail until configured.');
-  }
-  return 'unconfigured-google-client-id';
-}
 
 export const metadata: Metadata = {
   title: {
@@ -82,22 +71,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <GoogleOAuthProvider clientId={resolveGoogleClientId()}>
-          <AuthProvider>
-            <AdminAuthProvider>
-              <CartProvider>
-                <a href="#main-content" className="skip-link">Skip to main content</a>
-                <AnnouncementBar />
-                <Header />
-                <main id="main-content">
-                  {children}
-                </main>
-                <Footer />
-                <WhatsAppFloat />
-              </CartProvider>
-            </AdminAuthProvider>
-          </AuthProvider>
-        </GoogleOAuthProvider>
+        <RuntimeConfigProvider>
+          <GoogleAuthGate>
+            <AuthProvider>
+              <AdminAuthProvider>
+                <CartProvider>
+                  <a href="#main-content" className="skip-link">Skip to main content</a>
+                  <AnnouncementBar />
+                  <Header />
+                  <main id="main-content">
+                    {children}
+                  </main>
+                  <Footer />
+                  <WhatsAppFloat />
+                </CartProvider>
+              </AdminAuthProvider>
+            </AuthProvider>
+          </GoogleAuthGate>
+        </RuntimeConfigProvider>
       </body>
     </html>
   );

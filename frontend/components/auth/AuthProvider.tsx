@@ -1,9 +1,16 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
+import { useGoogleClientId } from '@/components/runtime/RuntimeConfigProvider';
 
-export const GOOGLE_CLIENT_ID_CONFIGURED =
-  Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+/**
+ * Whether Google sign-in is usable in the current session. The Google OAuth
+ * client ID is delivered at runtime from `/api/config/public` (Azure Function
+ * App > Configuration > GOOGLE_CLIENT_ID) — not baked into the static build.
+ */
+export function useIsGoogleAuthConfigured(): boolean {
+  return Boolean(useGoogleClientId());
+}
 
 export interface User {
   email: string;

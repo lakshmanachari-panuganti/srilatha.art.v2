@@ -40,6 +40,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// ─── Public runtime config ───────────────────────────────────────────────────
+
+export interface PublicConfig {
+  googleClientId: string;
+}
+
+export function getPublicConfig() {
+  return request<PublicConfig>('/config/public');
+}
+
 // ─── Customer Auth ───────────────────────────────────────────────────────────
 
 export interface AuthResponse {

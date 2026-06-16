@@ -1,6 +1,6 @@
 'use client';
 import { useGoogleLogin } from '@react-oauth/google';
-import { useAuth, GOOGLE_CLIENT_ID_CONFIGURED } from './AuthProvider';
+import { useAuth, useIsGoogleAuthConfigured } from './AuthProvider';
 import { useEffect, useState } from 'react';
 import {
   authLogin,
@@ -45,6 +45,7 @@ const EyeIcon = ({ open }: { open: boolean }) => (
 
 export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: AuthModalProps) {
   const { login } = useAuth();
+  const googleAuthConfigured = useIsGoogleAuthConfigured();
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -231,8 +232,8 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
           <div className="auth-panel">
             <button
               type="button"
-              onClick={() => GOOGLE_CLIENT_ID_CONFIGURED && handleGoogleLogin()}
-              disabled={loading || !GOOGLE_CLIENT_ID_CONFIGURED}
+              onClick={() => googleAuthConfigured && handleGoogleLogin()}
+              disabled={loading || !googleAuthConfigured}
               className="auth-google-btn"
             >
               <GoogleIcon />
@@ -401,8 +402,8 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
 
             <button
               type="button"
-              onClick={() => GOOGLE_CLIENT_ID_CONFIGURED && handleGoogleLogin()}
-              disabled={loading || !GOOGLE_CLIENT_ID_CONFIGURED}
+              onClick={() => googleAuthConfigured && handleGoogleLogin()}
+              disabled={loading || !googleAuthConfigured}
               className="auth-google-btn"
             >
               <GoogleIcon />

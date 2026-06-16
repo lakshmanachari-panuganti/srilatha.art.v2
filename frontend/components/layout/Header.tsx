@@ -347,9 +347,50 @@ export default function Header() {
         </div>
 
         {/* Mobile CTA */}
-        <Link href="/shop?category=resin" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} className="btn btn-primary btn-full" style={{ marginBottom: 'var(--sp-5)' }}>
+        <Link href="/shop?category=resin" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} className="btn btn-primary btn-full" style={{ marginBottom: 'var(--sp-4)' }}>
           ⚡ Shop Resin Art
         </Link>
+
+        {/* Account block — sign in/up CTA when logged out, profile summary when logged in */}
+        {user ? (
+          <div className="mobile-nav-account" style={{ marginBottom: 'var(--sp-4)', padding: 'var(--sp-3) var(--sp-4)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)' }}>
+              {user.picture ? (
+                <img src={user.picture} alt="" style={{ width: 36, height: 36, borderRadius: '50%', border: '1px solid var(--border-mid)' }} />
+              ) : (
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>{user.name || 'Account'}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', marginTop: 'var(--sp-3)' }}>
+              <Link href="/account" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>My Account</Link>
+              <Link href="/account/orders" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Orders</Link>
+              <Link href="/account/wishlist" onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); }} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Wishlist</Link>
+              <button
+                type="button"
+                onClick={() => { logout(); setDrawerOpen(false); setMobileCollectionsOpen(false); }}
+                style={{ textAlign: 'left', background: 'none', border: 'none', padding: 0, marginTop: 'var(--sp-2)', color: '#EF4444', fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); setAuthModalOpen(true); }}
+            className="btn btn-secondary btn-full"
+            style={{ marginBottom: 'var(--sp-4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-2)' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Sign in or create account
+          </button>
+        )}
 
         <nav className="mobile-nav-links">
           {NAV_LINKS.filter(link => link.href !== '/').map(link => (

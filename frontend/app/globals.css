@@ -1825,9 +1825,10 @@ ul, ol { list-style: none; }
   /* WhatsApp FAB clearance — keep page content above the floating button */
   body { padding-bottom: 88px; }
 
-  /* Hide secondary header icons on small phones — keep cart + hamburger */
-  #header-search-btn,
-  #header-account-btn { display: none !important; }
+  /* Hide search on small phones — keep account (profile), cart + hamburger.
+     The account icon sits next to the cart; the hamburger drawer also offers
+     a Sign in entry when no user is logged in. */
+  #header-search-btn { display: none !important; }
 
   /* Mobile-only hero visual frame — fills the void above the headline */
   .hero-img-frame-mobile {

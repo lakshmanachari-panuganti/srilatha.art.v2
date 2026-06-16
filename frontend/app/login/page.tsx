@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useGoogleLogin } from '@react-oauth/google';
-import { useAuth, GOOGLE_CLIENT_ID_CONFIGURED } from '@/components/auth/AuthProvider';
+import { useAuth, useIsGoogleAuthConfigured } from '@/components/auth/AuthProvider';
 import { authGoogle, ApiError } from '@/lib/api';
 
 function LoginInner() {
@@ -11,6 +11,7 @@ function LoginInner() {
   const sp = useSearchParams();
   const next = sp.get('next') || '/account';
   const { user, login } = useAuth();
+  const googleAuthConfigured = useIsGoogleAuthConfigured();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -56,17 +57,17 @@ function LoginInner() {
             Sign in to track orders, save your wishlist and check out faster next time.
           </p>
 
-          {!GOOGLE_CLIENT_ID_CONFIGURED && (
+          {!googleAuthConfigured && (
             <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--r-md)', padding: 'var(--sp-3)', marginBottom: 'var(--sp-5)', fontSize: '0.78rem', color: '#FCA5A5', textAlign: 'left' }}>
               <strong>Sign-in is currently unavailable.</strong> The site administrator has not configured Google OAuth. Try again later or message us on WhatsApp.
             </div>
           )}
 
           <button
-            onClick={() => GOOGLE_CLIENT_ID_CONFIGURED && handleGoogleLogin()}
-            disabled={loading || !GOOGLE_CLIENT_ID_CONFIGURED}
+            onClick={() => googleAuthConfigured && handleGoogleLogin()}
+            disabled={loading || !googleAuthConfigured}
             className="btn btn-primary btn-full pulse-glow"
-            style={{ display: 'inline-flex', justifyContent: 'center', gap: 'var(--sp-2)', alignItems: 'center', opacity: GOOGLE_CLIENT_ID_CONFIGURED ? 1 : 0.5 }}
+            style={{ display: 'inline-flex', justifyContent: 'center', gap: 'var(--sp-2)', alignItems: 'center', opacity: googleAuthConfigured ? 1 : 0.5 }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#ffffff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

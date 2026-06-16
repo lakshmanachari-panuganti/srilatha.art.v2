@@ -13,6 +13,7 @@
       WHATSAPP_PHONE_NUMBER_ID
       WHATSAPP_WABA_ID
       WHATSAPP_WEBHOOK_VERIFY_TOKEN
+      GOOGLE_CLIENT_ID
 
     All parameters are optional, but at least one must be supplied.
 
@@ -45,10 +46,23 @@
 .PARAMETER WhatsAppWebhookVerifyToken
     Arbitrary token used to verify the WhatsApp webhook subscription handshake.
 
+.PARAMETER GoogleClientId
+    Google OAuth Client ID (e.g. '1234567890-abcdefg.apps.googleusercontent.com').
+    Read by the backend and surfaced to the frontend via GET /api/config/public,
+    so the customer "Continue with Google" button can be enabled at runtime
+    without baking the value into the static frontend build.
+    Public value (appears in served HTML once the SPA fetches it) - shown
+    in the console alongside INVOICE_LOGO_URL.
+
 .EXAMPLE
     # Update only the SMTP password on DEV
     ./infra/Update-AppSettings-v2.ps1 -Environment dev `
         -SmtpPass 'NewP@ssw0rd!'
+
+.EXAMPLE
+    # Update only the Google OAuth Client ID on DEV
+    ./infra/Update-AppSettings-v2.ps1 -Environment dev `
+        -GoogleClientId '1234567890-abcdefg.apps.googleusercontent.com'
 
 .EXAMPLE
     # Update all WhatsApp-related settings on PRD
@@ -110,6 +124,9 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$WhatsAppWebhookVerifyToken,
 
+    [Parameter(Mandatory = $false)]
+    [string]$GoogleClientId,
+
     [Parameter()]
     [switch] $IgnoreAzAuth
 )
@@ -158,6 +175,7 @@ if ($PSBoundParameters.ContainsKey('WhatsAppAppSecret')) { $settingsToApply['WHA
 if ($PSBoundParameters.ContainsKey('WhatsAppPhoneNumberId')) { $settingsToApply['WHATSAPP_PHONE_NUMBER_ID'] = $WhatsAppPhoneNumberId.Trim() }
 if ($PSBoundParameters.ContainsKey('WhatsAppWabaId')) { $settingsToApply['WHATSAPP_WABA_ID'] = $WhatsAppWabaId.Trim() }
 if ($PSBoundParameters.ContainsKey('WhatsAppWebhookVerifyToken')) { $settingsToApply['WHATSAPP_WEBHOOK_VERIFY_TOKEN'] = $WhatsAppWebhookVerifyToken }
+if ($PSBoundParameters.ContainsKey('GoogleClientId')) { $settingsToApply['GOOGLE_CLIENT_ID'] = $GoogleClientId.Trim() }
 
 if ($settingsToApply.Count -eq 0) {
     throw "No settings provided. Supply at least one parameter to update."
@@ -171,8 +189,11 @@ foreach ($entry in $settingsToApply.GetEnumerator()) {
     }
 }
 
-# Safe to display URL; all others are masked.
-$urlSetting = 'INVOICE_LOGO_URL'
+# Settings whose values are safe to display in console output.
+# INVOICE_LOGO_URL is a public URL embedded in invoice PDFs.
+# GOOGLE_CLIENT_ID is a public OAuth client identifier (visible in served HTML).
+# All other settings are treated as secrets and masked.
+$safeToDisplay = @('INVOICE_LOGO_URL', 'GOOGLE_CLIENT_ID')
 
 # ─── 4. Authenticate via service principal ────────────────────────────────
 & "$PSScriptRoot\Azure-Connectivity.ps1"
@@ -245,7 +266,7 @@ if ($existing) {
     foreach ($s in $existing | Sort-Object name) {
         # `value` can be $null for unresolved Key Vault references - guard with ??.
         $len = ($s.value ?? '').Length
-        if ($s.name -eq $urlSetting) {
+        if ($safeToDisplay -contains $s.name) {
             Write-Host ("  {0} = {1}  (will overwrite)" -f $s.name, $s.value)
         } else {
             Write-Host ("  {0} = ******** ({1} chars, will overwrite)" -f $s.name, $len)
@@ -323,7 +344,7 @@ Write-Host "OK. $($envCfg.FunctionAppName) now has the following updated setting
 Write-Host ''
 
 foreach ($entry in $settingsToApply.GetEnumerator() | Sort-Object Key) {
-    if ($entry.Key -eq $urlSetting) {
+    if ($safeToDisplay -contains $entry.Key) {
         Write-Host ("  {0} = {1}" -f $entry.Key, $entry.Value) -ForegroundColor White
     } else {
         Write-Host ("  {0} = ******** ({1} chars)" -f $entry.Key, $entry.Value.Length) -ForegroundColor White
