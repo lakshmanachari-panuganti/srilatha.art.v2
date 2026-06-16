@@ -14,3 +14,5 @@ import './functions/reviewsAdmin';
 import './functions/whatsappAdmin';
 import './functions/customOrdersAdmin';
 import './functions/adminStats';
+import './functions/upload';
+import './functions/productAI';

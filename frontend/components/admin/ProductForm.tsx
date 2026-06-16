@@ -1,6 +1,35 @@
 'use client';
 import { useState } from 'react';
-import { AdminProduct } from '@/lib/adminApi';
+import { adminApi, AdminApiError, AdminProduct, type AiErrorCode } from '@/lib/adminApi';
+import { Sparkles } from 'lucide-react';
+import ImageUploader from './ImageUploader';
+
+const AI_USER_MESSAGE: Record<AiErrorCode, string> = {
+  MISSING_CONFIG:
+    'AI generation isn’t configured on the server. Ask the admin to set AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY and AZURE_OPENAI_DEPLOYMENT_NAME on the Function App.',
+  AUTH_ERROR: 'The AI service rejected our credentials. The API key may have expired or been rotated.',
+  DEPLOYMENT_NOT_FOUND: 'The configured AI model deployment was not found. Check the deployment name in Azure OpenAI.',
+  RATE_LIMIT: 'AI request limit reached. Wait a minute and try again.',
+  SERVICE_UNAVAILABLE: 'The AI service is temporarily unavailable. Please try again shortly.',
+  TIMEOUT: 'The AI service took longer than 30 seconds to respond. Try again — sometimes the first call after a quiet period is slow.',
+  IMAGE_PROCESSING_ERROR:
+    'The AI service could not read this image. Try a different image, or one with clearer detail (JPEG/PNG/WebP, public URL).',
+  INVALID_RESPONSE: 'The AI returned a response that didn’t match the expected shape. Try again.',
+  CONTENT_VALIDATION_FAILED:
+    'The AI generated content but it was missing required fields. Try again — vision results vary slightly between calls.',
+  NETWORK_ERROR: 'Could not reach the AI service from the server. Check the AZURE_OPENAI_ENDPOINT setting.',
+  INVALID_INPUT: 'Invalid input — please upload an image first, then click Generate.',
+  INTERNAL_ERROR: 'Something went wrong on our side. The error has been logged.',
+};
+
+function aiUserMessage(err: unknown): string {
+  if (err instanceof AdminApiError) {
+    const code = err.code as AiErrorCode | undefined;
+    if (code && AI_USER_MESSAGE[code]) return AI_USER_MESSAGE[code];
+    return err.message;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
 
 interface Props {
   initial?: AdminProduct;
@@ -31,21 +60,58 @@ export default function ProductForm({ initial, onSubmit, busy }: Props) {
     tags: initial?.tags ?? [],
     active: initial?.active ?? true,
   });
-  const [imagesText, setImagesText] = useState((initial?.images ?? []).join('\n'));
+  const [images, setImages] = useState<string[]>(initial?.images ?? []);
+  const [extraUrlsText, setExtraUrlsText] = useState('');
   const [tagsText, setTagsText] = useState((initial?.tags ?? []).join(', '));
   const [error, setError] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiSuccess, setAiSuccess] = useState('');
 
   function set<K extends keyof AdminProduct>(key: K, value: AdminProduct[K] | undefined) {
     setForm(prev => ({ ...prev, [key]: value }));
   }
 
+  async function handleAiGenerate() {
+    setAiError('');
+    setAiSuccess('');
+    const firstImage = images[0];
+    if (!firstImage) {
+      setAiError('Upload an image first — the AI needs an image to generate from.');
+      return;
+    }
+    if (!/^https?:\/\//.test(firstImage)) {
+      setAiError('The first image is a local/relative URL. Upload it to blob storage first so the AI service can fetch it.');
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const content = await adminApi.aiGenerateFromUrl(firstImage);
+      setForm(prev => ({
+        ...prev,
+        name: content.title || prev.name,
+        shortDesc: content.shortDescription || prev.shortDesc,
+        description: content.description || prev.description,
+        material: content.material || prev.material,
+        careInstructions: content.careInstructions || prev.careInstructions,
+      }));
+      setAiSuccess('Product details generated from the image. Review and edit before saving.');
+    } catch (err) {
+      setAiError(aiUserMessage(err));
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    const extraUrls = extraUrlsText.split(/\n+/).map(s => s.trim()).filter(Boolean);
+    const finalImages = [...images, ...extraUrls];
     try {
       await onSubmit({
         ...form,
-        images: imagesText.split(/\n+/).map(s => s.trim()).filter(Boolean),
+        images: finalImages,
         tags: tagsText.split(',').map(s => s.trim()).filter(Boolean),
       });
     } catch (err) {
@@ -55,6 +121,38 @@ export default function ProductForm({ initial, onSubmit, busy }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="admin-form" style={{ maxWidth: 880 }}>
+
+      {/* ─── AI generate (uses the first uploaded image) ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => void handleAiGenerate()}
+            disabled={aiBusy || images.length === 0}
+            className="btn btn-primary pulse-glow"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+          >
+            <Sparkles size={16} />
+            {aiBusy ? 'Generating…' : 'Generate Product Details'}
+          </button>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            {images.length === 0
+              ? 'Upload at least one image first — the AI generates name, descriptions, material and care from the image.'
+              : 'Reads the first image and auto-fills name, descriptions, material and care.'}
+          </span>
+        </div>
+        {aiSuccess && (
+          <div style={{ background: 'rgba(0,230,118,0.08)', border: '1px solid rgba(0,230,118,0.3)', borderRadius: 'var(--r-md)', padding: 'var(--sp-3)', fontSize: '0.82rem', color: 'var(--accent-green)' }}>
+            {aiSuccess}
+          </div>
+        )}
+        {aiError && (
+          <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 'var(--r-md)', padding: 'var(--sp-3)', fontSize: '0.82rem', color: '#FCA5A5', lineHeight: 1.55 }}>
+            {aiError}
+          </div>
+        )}
+      </div>
+
       <div className="admin-form-grid-2">
         <div>
           <label className="form-label">Name *</label>
@@ -120,9 +218,21 @@ export default function ProductForm({ initial, onSubmit, busy }: Props) {
       </div>
 
       <div>
-        <label className="form-label">Images (one URL per line)</label>
-        <textarea className="form-input form-textarea" value={imagesText} onChange={e => setImagesText(e.target.value)} rows={3} placeholder="/images/resin-1.png" />
+        <label className="form-label">Images</label>
+        <ImageUploader images={images} onChange={setImages} />
       </div>
+
+      <details style={{ marginTop: -8 }}>
+        <summary style={{ fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>Or paste image URLs (one per line)</summary>
+        <textarea
+          className="form-input form-textarea"
+          value={extraUrlsText}
+          onChange={e => setExtraUrlsText(e.target.value)}
+          rows={3}
+          placeholder="/images/resin-1.png&#10;https://stsrilathaartv2dev.blob.core.windows.net/products/abc.jpg"
+          style={{ marginTop: 8 }}
+        />
+      </details>
 
       <div>
         <label className="form-label">Tags (comma-separated)</label>

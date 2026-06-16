@@ -14,10 +14,15 @@ const TOKEN_KEY = 'srilatha_admin_token';
 export class AdminApiError extends Error {
   status: number;
   body: unknown;
+  /** Stable machine-readable code (e.g. AiErrorCode). Available when the API sets one. */
+  code?: string;
   constructor(message: string, status: number, body: unknown) {
     super(message);
     this.status = status;
     this.body = body;
+    if (body && typeof body === 'object' && 'code' in body && typeof (body as { code: unknown }).code === 'string') {
+      this.code = (body as { code: string }).code;
+    }
   }
 }
 
@@ -151,6 +156,65 @@ export const adminApi = {
     request<{ conversations: AdminWhatsappSummary[]; total: number }>('/mgmt/whatsapp/conversations'),
   getConversation: (phone: string) =>
     request<{ phone: string; messages: AdminWhatsappMessage[] }>(`/mgmt/whatsapp/conversations/${encodeURIComponent(phone)}`),
+
+  // AI: generate product content from a public image URL
+  aiGenerateFromUrl: (imageUrl: string) =>
+    request<AiContent>('/mgmt/products/ai-generate', {
+      method: 'POST',
+      body: JSON.stringify({ imageUrl }),
+    }),
+
+  // AI: generate product content from a still-local file
+  aiGenerateFromFile: async (file: File): Promise<AiContent> => {
+    const token = getToken();
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/mgmt/products/ai-generate-upload`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: fd,
+      });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new AdminApiError(`Cannot reach API at ${API_BASE} — ${detail}`, 0, err);
+    }
+    const body = await res.json().catch(() => undefined);
+    if (!res.ok) {
+      const errBody = body as { code?: string; error?: string } | undefined;
+      const msg = errBody?.error ?? `AI generate failed (${res.status})`;
+      const err = new AdminApiError(msg, res.status, body);
+      // Preserve the code so the UI can map to a specific user message.
+      (err as AdminApiError & { code?: string }).code = errBody?.code;
+      throw err;
+    }
+    return body as AiContent;
+  },
+
+  // Image upload — multipart, returns the public blob URL
+  uploadImage: async (file: File): Promise<{ url: string; blobName: string; size: number; contentType: string }> => {
+    const token = getToken();
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE}/mgmt/upload`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: fd,
+      });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new AdminApiError(`Cannot reach API at ${API_BASE} — ${detail}`, 0, err);
+    }
+    const body = await res.json().catch(() => undefined);
+    if (!res.ok) {
+      const msg = (body && typeof body === 'object' && 'error' in body) ? String((body as { error: string }).error) : `Upload failed (${res.status})`;
+      throw new AdminApiError(msg, res.status, body);
+    }
+    return body;
+  },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -265,6 +329,28 @@ export interface AdminWhatsappSummary {
   lastMessage: string;
   lastDirection: 'inbound' | 'outbound';
   lastTimestamp: string;
+}
+
+export type AiErrorCode =
+  | 'MISSING_CONFIG'
+  | 'AUTH_ERROR'
+  | 'DEPLOYMENT_NOT_FOUND'
+  | 'RATE_LIMIT'
+  | 'SERVICE_UNAVAILABLE'
+  | 'TIMEOUT'
+  | 'IMAGE_PROCESSING_ERROR'
+  | 'INVALID_RESPONSE'
+  | 'CONTENT_VALIDATION_FAILED'
+  | 'NETWORK_ERROR'
+  | 'INVALID_INPUT'
+  | 'INTERNAL_ERROR';
+
+export interface AiContent {
+  title: string;
+  shortDescription: string;
+  description: string;
+  material: string;
+  careInstructions: string;
 }
 
 export interface AdminWhatsappMessage {
