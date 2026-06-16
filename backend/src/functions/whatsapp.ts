@@ -1,4 +1,12 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { renderTemplate } from '../templates/whatsappTemplates';
+
+// Site-specific store contact number, injected into every customer-facing
+// template as the trailing `Store Contact Number` positional variable.
+// Templates in ../templates/whatsappTemplates.ts are site-agnostic and read
+// this value via the positional placeholder — change this constant (or move
+// it to config) when deploying for a different store.
+export const STORE_CONTACT_NUMBER = '+91 9052380325';
 
 // ---------------------------------------------------------------------------
 // CORS helpers
@@ -61,7 +69,8 @@ export async function sendWhatsApp(to: string, message: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Message template helpers
+// Message builders — thin wrappers around the central template catalog.
+// New templates do NOT need a wrapper; callers can use renderTemplate() directly.
 // ---------------------------------------------------------------------------
 export function buildNewOrderMessage(params: {
   orderId: string;
@@ -74,63 +83,42 @@ export function buildNewOrderMessage(params: {
   const itemsList = params.items
     .map((i) => `  • ${i.name} × ${i.qty} — ₹${i.price}`)
     .join('\n');
-
-  return [
-    '🎨 *New Order - Srilatha Art*',
-    '',
-    `Order ID: ${params.orderId}`,
-    `Customer: ${params.name}`,
-    `Phone: ${params.phone}`,
-    `Items:\n${itemsList}`,
-    `Total: ₹${params.total}`,
-    `Address: ${params.address}`,
-    '',
-    'Please confirm and begin processing!',
-  ].join('\n');
+  return renderTemplate('new_order', [
+    params.orderId,
+    params.name,
+    params.phone,
+    itemsList,
+    params.total,
+    params.address,
+  ]);
 }
 
 export function buildShippedMessage(params: {
   name: string;
   orderId: string;
+  courier?: string;
   trackingNumber: string;
 }): string {
-  return [
-    `Hi ${params.name}! 🎨`,
-    '',
-    `Your Srilatha Art order #${params.orderId} has been shipped!`,
-    `Tracking: ${params.trackingNumber}`,
-    '',
-    'Expected delivery: 3-5 business days.',
-    'Questions? Reply to this message!',
-  ].join('\n');
+  return renderTemplate('order_shipped', [
+    params.name,
+    params.orderId,
+    params.courier ?? 'Courier partner',
+    params.trackingNumber,
+    STORE_CONTACT_NUMBER,
+  ]);
 }
-
-const STORE_CONTACT_NUMBER = '+91 9052380325';
 
 export function buildPasswordResetOtpMessage(params: {
   name: string;
   otp: string;
   validityMinutes: number;
 }): string {
-  return [
-    `Hello ${params.name},`,
-    '',
-    'We received a request to reset your account password.',
-    '',
-    `Your one-time password (OTP) is: ${params.otp}`,
-    '',
-    `This OTP is valid for ${params.validityMinutes} minutes. Please do not share it with anyone.`,
-    '',
-    'If you did not request this, please ignore this message or contact us immediately.',
-    '',
-    'If you have any questions, please feel free to contact us -',
-    '',
-    `📞 Call/WhatsApp: ${STORE_CONTACT_NUMBER}`,
-    '✉️ Email: studio@srilatha.art',
-    '🌐 www.srilatha.art',
-    '',
-    '-Srilatha Art',
-  ].join('\n');
+  return renderTemplate('reset_password_otp', [
+    params.name,
+    params.otp,
+    params.validityMinutes,
+    STORE_CONTACT_NUMBER,
+  ]);
 }
 
 export function buildCustomOrderMessage(params: {
@@ -140,17 +128,13 @@ export function buildCustomOrderMessage(params: {
   description: string;
   budget?: string;
 }): string {
-  return [
-    '🎨 *New Custom Order Request*',
-    '',
-    `Name: ${params.name}`,
-    `Phone: ${params.phone}`,
-    `Email: ${params.email}`,
-    `Description: ${params.description}`,
-    `Budget: ${params.budget ?? 'Not specified'}`,
-    '',
-    'Reply to discuss!',
-  ].join('\n');
+  return renderTemplate('custom_order', [
+    params.name,
+    params.phone,
+    params.email,
+    params.description,
+    params.budget ?? 'Not specified',
+  ]);
 }
 
 // ---------------------------------------------------------------------------

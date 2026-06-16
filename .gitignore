@@ -125,6 +125,10 @@ playwright/.cache/
 .swa/
 
 
+# ── Claude Code local config ─────────────────────────────────────
+.claude/settings.local.json
+
+
 # ── Miscellaneous ─────────────────────────────────────────────────
 *.tsbuildinfo
 .turbo/
