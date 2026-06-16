@@ -101,10 +101,51 @@ async function adminModerateReview(request: HttpRequest, context: InvocationCont
     // Note: we leave the old-partition record in place rather than deleting,
     // simpler than entity moves. Public read path filters by `approved`.
 
+    // Recompute the product's aggregate rating/reviewCount from the set of
+    // *approved* reviews so the storefront's hide-when-zero gate flips on
+    // immediately after a moderator approves the first review.
+    await recomputeProductRating(updated.productId, context);
+
     return json(toApi(updated));
   } catch (err) {
     context.error('adminModerateReview error', err);
     return json({ error: 'Internal server error' }, 500);
+  }
+}
+
+interface ProductRatingEntity {
+  partitionKey: string;
+  rowKey: string;
+  rating?: number;
+  reviewCount?: number;
+  [key: string]: unknown;
+}
+
+async function recomputeProductRating(productId: string, context: InvocationContext): Promise<void> {
+  if (!productId) return;
+  try {
+    const approved = await queryEntities<ReviewEntity>(
+      'reviews',
+      `PartitionKey eq 'approved' and productId eq '${productId.replace(/'/g, "''")}'`,
+    );
+    const reviewCount = approved.length;
+    const rating = reviewCount === 0
+      ? 0
+      : approved.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviewCount;
+
+    // Products are partitioned by category, so find the entity first.
+    const all = await queryEntitiesAll<ProductRatingEntity>('products');
+    const product = all.find(p => p.rowKey === productId);
+    if (!product) return;
+
+    await upsertEntity('products', {
+      ...product,
+      rating: Math.round(rating * 10) / 10, // 1 decimal place
+      reviewCount,
+    });
+  } catch (err) {
+    // Aggregate update is best-effort — never fail moderation if this errors.
+    context.warn('recomputeProductRating failed', err);
   }
 }
 

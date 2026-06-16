@@ -1317,24 +1317,31 @@ ul, ol { list-style: none; }
 .newsletter-input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(0,163,255,0.12); }
 
 /* ─── WhatsApp Float ─────────────────────────────────────────── */
+/* Inline `right` / `bottom` are managed by WhatsAppFloat.tsx (persisted to
+   localStorage so the user can drag the FAB out of their way). */
 .whatsapp-float-wrapper {
   position: fixed;
-  bottom: var(--sp-6); right: var(--sp-4);
   z-index: 100;
+  touch-action: none;          /* keep pointer drag from triggering scroll */
 }
+.whatsapp-float-wrapper.is-dragging { cursor: grabbing; }
+.whatsapp-float-wrapper.is-dragging .whatsapp-float { transform: scale(0.95); }
 .whatsapp-float {
-  width: 56px; height: 56px;
+  width: 50px; height: 50px;   /* ~10% smaller than the original 56px */
   background: #25D366;
   border-radius: var(--r-full);
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 0 20px rgba(37,211,102,0.5);
-  cursor: pointer;
-  transition: all var(--dur-base) var(--ease-bounce);
+  cursor: grab;
+  transition: transform var(--dur-base) var(--ease-bounce),
+              box-shadow var(--dur-base) var(--ease-bounce);
   text-decoration: none;
   position: relative;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 .whatsapp-float:hover { transform: scale(1.1); box-shadow: 0 0 30px rgba(37,211,102,0.7); }
-.whatsapp-float svg { width: 28px; height: 28px; color: #fff; }
+.whatsapp-float svg { width: 26px; height: 26px; color: #fff; pointer-events: none; }
 .whatsapp-pulse-ring {
   position: absolute; inset: -6px;
   border-radius: var(--r-full);
@@ -1348,7 +1355,7 @@ ul, ol { list-style: none; }
 }
 .whatsapp-tooltip {
   position: absolute;
-  right: 64px; top: 50%;
+  right: 58px; top: 50%;
   transform: translateY(-50%);
   background: var(--bg-card);
   border: 1px solid var(--border-mid);

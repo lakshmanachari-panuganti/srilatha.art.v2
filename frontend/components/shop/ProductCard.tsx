@@ -106,10 +106,12 @@ export default function ProductCard({ product, showQuickAdd = true }: ProductCar
         <Link href={`/product/${product.slug}`} className="product-card-name">
           {product.name}
         </Link>
-        <div className="product-card-rating">
-          <StarRating rating={product.rating} />
-          <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>({product.reviewCount})</span>
-        </div>
+        {product.reviewCount > 0 && (
+          <div className="product-card-rating">
+            <StarRating rating={product.rating} />
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>({product.reviewCount})</span>
+          </div>
+        )}
         <div className="product-card-price">
           <span className="price-current">{formatPrice(product.price)}</span>
           {product.originalPrice && (

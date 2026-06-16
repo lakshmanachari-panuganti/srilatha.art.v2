@@ -40,6 +40,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// ─── Reviews (public) ────────────────────────────────────────────────────────
+
+export interface PublicReview {
+  id: string;
+  productId: string;
+  author: string;
+  city?: string;
+  rating: number;
+  title: string;
+  body: string;
+  date: string;
+  verified: boolean;
+}
+
+export function listProductReviews(productId: string) {
+  return request<{ reviews: PublicReview[]; total: number }>(
+    `/reviews?productId=${encodeURIComponent(productId)}`,
+  );
+}
+
+export function submitProductReview(
+  input: { productId: string; rating: number; title: string; body: string; city?: string },
+  token: string,
+) {
+  return request<{ id: string; status: 'pending'; message: string }>(
+    '/reviews',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 // ─── Public runtime config ───────────────────────────────────────────────────
 
 export interface PublicConfig {

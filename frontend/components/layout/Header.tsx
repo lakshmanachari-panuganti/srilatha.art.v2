@@ -281,10 +281,12 @@ export default function Header() {
               )}
             </div>
 
-            {/* CTA button — desktop: "Shop Now", mobile: hidden (bottom bar handles it) */}
+            {/* CTA button — desktop: "Shop Now", mobile: hidden (bottom bar handles it).
+                On the home page we hide the CTA until the user scrolls past the hero,
+                so it does not compete with the hero's "Explore Resin Art" pill. */}
             <Link
               href="/shop?category=resin"
-              className="btn btn-primary btn-sm"
+              className={`btn btn-primary btn-sm ${pathname === '/' && !scrolled ? 'header-cta-hidden' : ''}`}
               id="header-cta-btn"
               style={{ fontWeight: 700 }}
             >
@@ -466,6 +468,20 @@ export default function Header() {
         }
         @media (max-width: 1023px) {
           #header-cta-btn { display: none; }
+        }
+        /* Smooth fade for the "Shop Now" CTA so it doesn't compete with the hero
+           "Explore Resin Art" pill at the top of the home page. As soon as the
+           user scrolls past the hero (scrolled === true) the CTA fades back in. */
+        #header-cta-btn {
+          opacity: 1;
+          transform: translateY(0);
+          transition: opacity var(--dur-base) var(--ease-out),
+                      transform var(--dur-base) var(--ease-out);
+        }
+        #header-cta-btn.header-cta-hidden {
+          opacity: 0;
+          transform: translateY(-6px);
+          pointer-events: none;
         }
         .header-search-bar {
           position: absolute; top: 100%; left: 0; right: 0;

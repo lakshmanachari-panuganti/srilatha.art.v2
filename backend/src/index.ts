@@ -20,3 +20,4 @@ import './functions/adminStats';
 import './functions/upload';
 import './functions/productAI';
 import './functions/publicConfig';
+import './functions/customerReviews';
