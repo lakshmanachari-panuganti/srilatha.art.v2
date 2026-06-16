@@ -77,13 +77,9 @@ export default function HomeClient() {
             <div className="hero-img-frame-mobile">
               <Image src={seedImg('resin-art-hero.png')} alt="Resin Art by Srilatha" fill priority sizes="(max-width: 767px) 100vw, 0" style={{ objectFit: 'cover' }} />
             </div>
-            <div className="hero-eyebrow">
-              <span className="eyebrow">
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: 'var(--glow-green)', display: 'inline-block' }} />
-                Handmade Studio · Ships Across India
-              </span>
-            </div>
-
+            {/* Hero intentionally renders no eyebrow chip — the headline and
+                trust strip below carry the same "handmade · ships pan-India"
+                signal more cleanly. */}
             <h1 className="hero-h1">
               <span className="hero-h1-line">Heirloom Resin Art</span>
               <span className="hero-h1-line">
@@ -165,8 +161,7 @@ export default function HomeClient() {
         <section className="section">
           <div className="container">
             <div className="section-header">
-              <span className="eyebrow">Customer Favourites</span>
-              <h2>Best Selling <span style={{ background: 'var(--gradient-warm)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Artworks</span></h2>
+              <h2>Best Selling <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Artworks</span></h2>
               <p>These pieces fly off our shelves. Loved by customers across India.</p>
             </div>
 
@@ -176,7 +171,7 @@ export default function HomeClient() {
               ))}
             </div>
 
-            <div style={{ textAlign: 'center', marginTop: 'var(--sp-10)' }}>
+            <div style={{ textAlign: 'center', marginTop: 'var(--sp-6)' }}>
               <Link href="/shop" className="btn btn-secondary btn-lg">
                 View All Products →
               </Link>
@@ -242,8 +237,7 @@ export default function HomeClient() {
         <section className="section" style={{ background: 'var(--bg-surface)' }}>
           <div className="container">
             <div className="section-header">
-              <span className="eyebrow">Just Landed</span>
-              <h2>New <span style={{ background: 'var(--gradient-green)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Arrivals</span></h2>
+              <h2>New <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Arrivals</span></h2>
               <p>Fresh from the studio — limited pieces, first come first served.</p>
             </div>
 
@@ -268,7 +262,7 @@ export default function HomeClient() {
               <span className="eyebrow">Our Story</span>
               <h2 className="heading-lg" style={{ marginBottom: 'var(--sp-5)', color: 'var(--text-primary)' }}>
                 Handcrafted<br />
-                <span style={{ background: 'var(--gradient-warm)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>with Care</span>
+                <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>with Care</span>
               </h2>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: 'var(--sp-6)', fontSize: '0.95rem' }}>
                 Srilatha is a self-taught artist who discovered the magic of resin art in 2019.
@@ -288,21 +282,20 @@ export default function HomeClient() {
       <section className="section">
         <div className="container">
           <div className="section-header">
-            <span className="eyebrow">@srilatha.art</span>
             <h2>Follow Our <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Journey</span></h2>
-            <p>Behind the scenes, new pieces, process videos and more.</p>
+            <p>Behind the scenes, new pieces, process videos and more on <span style={{ color: 'var(--accent-blue)' }}>@srilatha.art</span>.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--sp-2)' }}>
+          <div className="ig-grid">
             {GALLERY_IMAGES.map((img, i) => (
-              <div key={i} style={{ position: 'relative', aspectRatio: '1/1', borderRadius: 'var(--r-lg)', overflow: 'hidden', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                <Image src={img} alt={`Gallery ${i + 1}`} fill style={{ objectFit: 'cover', transition: 'transform 0.4s ease' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(9,11,16,0)', transition: 'background 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="2" style={{ opacity: 0 }}>
+              <a key={i} href="https://instagram.com/srilatha.art" target="_blank" rel="noopener noreferrer" className="ig-tile" aria-label={`Open Instagram gallery image ${i + 1}`}>
+                <Image src={img} alt={`Gallery ${i + 1}`} fill style={{ objectFit: 'cover' }} />
+                <span className="ig-tile-hover" aria-hidden="true">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
                   </svg>
-                </div>
-              </div>
+                </span>
+              </a>
             ))}
           </div>
 
@@ -326,7 +319,6 @@ export default function HomeClient() {
       <div className="newsletter-section">
         <div className="container">
           <div style={{ maxWidth: 520, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-            <span className="eyebrow" style={{ margin: '0 auto var(--sp-4)', display: 'flex', justifyContent: 'center' }}>Stay in the Loop</span>
             <h2 className="heading-lg" style={{ color: 'var(--text-primary)', marginBottom: 'var(--sp-3)', textAlign: 'center' }}>
               Get Early Access to<br />
               <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>New Pieces</span>

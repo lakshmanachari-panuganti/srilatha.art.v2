@@ -21,11 +21,11 @@
   --border-strong:  rgba(255,255,255,0.2);
   --border-accent:  rgba(0,163,255,0.3);
 
-  /* Text */
+  /* Text — body opacities bumped to clear WCAG AA on the #090B10 base */
   --text-primary:   #FFFFFF;
-  --text-secondary: rgba(255,255,255,0.7);
-  --text-muted:     rgba(255,255,255,0.55);
-  --text-dim:       rgba(255,255,255,0.3);
+  --text-secondary: rgba(255,255,255,0.82);   /* body copy */
+  --text-muted:     rgba(255,255,255,0.66);   /* captions / meta */
+  --text-dim:       rgba(255,255,255,0.42);   /* placeholders / dividers */
 
   /* Brand Accents */
   --accent-blue:    #00A3FF;
@@ -38,8 +38,10 @@
   --accent-gold-glow: rgba(255,184,0,0.35);
   --accent-teal:    #00C9B8;
 
-  /* Gradients */
-  --gradient-brand:  linear-gradient(135deg, #00E676 0%, #00A3FF 50%, #7B61FF 100%);
+  /* Gradients — `--gradient-brand` is the single text/accent identity used
+     across the site. Warm orange is reserved for "Sale" / urgency only. The
+     green / blue / glass variants exist for non-text surfaces (logo, charts). */
+  --gradient-brand:  linear-gradient(135deg, #00A3FF 0%, #7B61FF 100%);
   --gradient-blue:   linear-gradient(135deg, #00A3FF 0%, #0066CC 100%);
   --gradient-warm:   linear-gradient(135deg, #FFB800 0%, #FF6B35 100%);
   --gradient-green:  linear-gradient(135deg, #00E676 0%, #00C9B8 100%);
@@ -62,13 +64,18 @@
   --r-sm:   6px;  --r-md:  10px; --r-lg:  16px;
   --r-xl:   20px; --r-2xl: 28px; --r-full: 9999px;
 
-  /* Shadows & Glows */
-  --shadow-sm:   0 2px 8px rgba(0,0,0,0.4);
-  --shadow-md:   0 4px 24px rgba(0,0,0,0.5);
-  --shadow-lg:   0 8px 48px rgba(0,0,0,0.6);
-  --glow-blue:   0 0 20px rgba(0,163,255,0.4), 0 0 60px rgba(0,163,255,0.15);
-  --glow-green:  0 0 20px rgba(0,230,118,0.4), 0 0 60px rgba(0,230,118,0.12);
-  --glow-gold:   0 0 20px rgba(255,184,0,0.35), 0 0 50px rgba(255,184,0,0.1);
+  /* Shadows & Glows — `--glow-blue` is the canonical CTA glow used by the
+     primary button, FAB hover, newsletter, and any card-glow elevation. The
+     `-hover` variant is the same shape, ~30% stronger, and only fires on
+     interaction so resting state never out-shouts content. */
+  --shadow-sm:        0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md:        0 4px 24px rgba(0,0,0,0.5);
+  --shadow-lg:        0 8px 48px rgba(0,0,0,0.6);
+  --glow-blue:        0 0 18px rgba(0,163,255,0.35), 0 0 48px rgba(0,163,255,0.12);
+  --glow-blue-hover:  0 0 28px rgba(0,163,255,0.55), 0 0 72px rgba(0,163,255,0.18);
+  --glow-blue-soft:   0 0 24px rgba(0,163,255,0.08);
+  --glow-green:       0 0 20px rgba(0,230,118,0.35), 0 0 60px rgba(0,230,118,0.10);
+  --glow-gold:        0 0 20px rgba(255,184,0,0.30), 0 0 50px rgba(255,184,0,0.08);
 
   /* Transitions */
   --ease:     cubic-bezier(0.4, 0, 0.2, 1);
@@ -112,67 +119,76 @@ ul, ol { list-style: none; }
 @media (min-width: 1024px) { .container { padding: 0 var(--sp-8); } }
 @media (min-width: 1280px) { .container { padding: 0 var(--sp-10); } }
 
-.section      { padding: var(--sp-16) 0; }
-.section-sm   { padding: var(--sp-10) 0; }
-.section-lg   { padding: var(--sp-24) 0; }
-@media (min-width: 768px) { .section { padding: var(--sp-24) 0; } }
+/* Section rhythm — compressed ~30% from the previous values so the home page
+   no longer scrolls past 5,500 px of mostly-empty dark bands. */
+.section      { padding: var(--sp-12) 0; }
+.section-sm   { padding: var(--sp-8) 0; }
+.section-lg   { padding: var(--sp-16) 0; }
+@media (min-width: 768px) { .section    { padding: var(--sp-16) 0; } }
+@media (min-width: 768px) { .section-lg { padding: var(--sp-20) 0; } }
 
 /* ─── Typography ─────────────────────────────────────────────── */
+/* Display weights lowered (900 → 750/800) with tighter leading so hero copy
+   reads as a couplet rather than a stacked list. Pair with `max-width: 14ch`
+   on hero headlines so they break into 2 lines, not 5. */
 .heading-hero {
   font-family: var(--font-body);
-  font-size: clamp(2.4rem, 7vw, 5.5rem);
-  font-weight: 900;
-  line-height: 1.06;
-  letter-spacing: -0.03em;
+  font-size: clamp(2.4rem, 7vw, 5rem);
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
   color: var(--text-primary);
 }
 .heading-lg {
   font-family: var(--font-body);
-  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.8rem, 4.5vw, 3.2rem);
+  font-weight: 750;
+  line-height: 1.08;
+  letter-spacing: -0.022em;
 }
 .heading-md {
   font-family: var(--font-body);
   font-size: clamp(1.3rem, 3vw, 2.2rem);
   font-weight: 700;
   line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 .heading-sm {
   font-family: var(--font-body);
   font-size: clamp(1.1rem, 2.2vw, 1.5rem);
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
-.text-gradient {
+.text-gradient,
+.text-gradient-blue {
   background: var(--gradient-brand);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-.text-gradient-blue {
-  background: linear-gradient(135deg, #00A3FF, #7B61FF);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
+/* Warm/orange gradient is reserved for Sale / urgency callouts only. */
 .text-gradient-warm {
-  background: linear-gradient(135deg, #FFB800, #FF6B35);
+  background: var(--gradient-warm);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
-.eyebrow {
+
+/* Single eyebrow style — used at most once per section. `page-eyebrow` is a
+   semantic alias for the same look on top-of-page intros (Shop, About, etc.)
+   so future tweaks live in one place. */
+.eyebrow,
+.page-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--accent-blue);
-  padding: var(--sp-1) var(--sp-3);
+  padding: 4px var(--sp-3);
   border: 1px solid var(--border-accent);
   border-radius: var(--r-full);
   background: rgba(0,163,255,0.08);
@@ -180,21 +196,24 @@ ul, ol { list-style: none; }
 }
 
 /* ─── Section Header ─────────────────────────────────────────── */
-.section-header { text-align: center; margin-bottom: var(--sp-12); }
+.section-header { text-align: center; margin-bottom: var(--sp-10); }
 .section-header h2 {
-  font-size: clamp(1.8rem, 4vw, 3rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.7rem, 3.6vw, 2.6rem);
+  font-weight: 750;
+  letter-spacing: -0.022em;
   color: var(--text-primary);
   margin-bottom: var(--sp-3);
-  line-height: 1.15;
+  line-height: 1.12;
+  max-width: 24ch;
+  margin-left: auto;
+  margin-right: auto;
 }
 .section-header p {
-  font-size: 1rem;
+  font-size: 0.98rem;
   color: var(--text-secondary);
-  max-width: 560px;
+  max-width: 56ch;
   margin: 0 auto;
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────── */
@@ -235,20 +254,22 @@ ul, ol { list-style: none; }
 .btn-primary:hover::before { opacity: 1; }
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 30px rgba(0,163,255,0.6), 0 0 80px rgba(0,163,255,0.2);
+  box-shadow: var(--glow-blue-hover);
 }
 .btn-primary:active { transform: translateY(0); }
 
-/* SECONDARY — outlined */
+/* SECONDARY — soft blue-tinted to stay readable against the dark theme */
 .btn-secondary {
-  background: transparent;
+  background: rgba(0,163,255,0.06);
   color: var(--text-primary);
-  border: 1.5px solid var(--border-mid);
+  border: 1.5px solid rgba(0,163,255,0.35);
 }
 .btn-secondary:hover {
-  border-color: var(--border-strong);
-  background: rgba(255,255,255,0.05);
+  border-color: var(--accent-blue);
+  background: rgba(0,163,255,0.12);
+  color: var(--text-primary);
   transform: translateY(-1px);
+  box-shadow: var(--glow-blue-soft);
 }
 
 /* GHOST */
@@ -306,17 +327,21 @@ ul, ol { list-style: none; }
   background-color: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
-  transition: all var(--dur-base) var(--ease);
+  transition: transform var(--dur-base) var(--ease),
+              border-color var(--dur-base) var(--ease),
+              box-shadow var(--dur-base) var(--ease),
+              background-color var(--dur-base) var(--ease);
   overflow: hidden;
 }
 .card:hover {
-  border-color: var(--border-mid);
+  border-color: var(--border-accent);
   background-color: var(--bg-card-hover);
   transform: translateY(-2px);
+  box-shadow: var(--glow-blue-soft);
 }
 .card-glow:hover {
   border-color: var(--border-accent);
-  box-shadow: 0 0 40px rgba(0,163,255,0.08);
+  box-shadow: var(--glow-blue-soft);
 }
 
 /* ─── Badge / Tag ────────────────────────────────────────────── */
@@ -670,17 +695,27 @@ ul, ol { list-style: none; }
   padding: var(--sp-8) 0;
 }
 .hero-eyebrow { margin-bottom: var(--sp-5); }
+/* Hero headline: lighter weight + tighter leading. Width is constrained by
+   `.hero-content` (680 px) — the explicit `<span class="hero-h1-line">`
+   blocks produce the natural 2-line couplet ("Heirloom Resin Art" /
+   "Made One Piece at a Time") without needing a hard `max-width` here. */
 .hero-h1 {
   font-family: var(--font-body);
-  font-size: clamp(2rem, 9vw, 5.5rem);
-  font-weight: 900;
+  font-size: clamp(2rem, 6.6vw, 3.8rem);
+  font-weight: 750;
   line-height: 1.06;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   color: var(--text-primary);
   margin-bottom: var(--sp-5);
   text-wrap: balance;
 }
-@media (min-width: 768px)  { .hero-h1 { letter-spacing: -0.03em; } }
+@media (min-width: 768px)  { .hero-h1 { letter-spacing: -0.028em; } }
+/* Keep each line on a single row, no internal wrapping. */
+.hero-h1-line { white-space: nowrap; }
+@media (max-width: 480px) {
+  .hero-h1 { font-size: clamp(1.7rem, 7.6vw, 2.4rem); }
+  .hero-h1-line { white-space: normal; }   /* tiny phones can wrap if they must */
+}
 .hero-h1-line { display: block; }
 .hero-h1-em {
   font-style: normal;
@@ -692,17 +727,17 @@ ul, ol { list-style: none; }
 }
 .hero-desc {
   font-size: clamp(0.95rem, 1.8vw, 1.1rem);
-  line-height: 1.75;
+  line-height: 1.65;
   color: var(--text-secondary);
-  margin-bottom: var(--sp-8);
-  max-width: 520px;
+  margin-bottom: var(--sp-6);
+  max-width: 48ch;
 }
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-3);
   align-items: center;
-  margin-bottom: var(--sp-10);
+  margin-bottom: var(--sp-8);
 }
 .hero-trust {
   display: flex;
@@ -781,14 +816,16 @@ ul, ol { list-style: none; }
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   overflow: hidden;
-  transition: all var(--dur-base) var(--ease);
+  transition: transform var(--dur-base) var(--ease),
+              border-color var(--dur-base) var(--ease),
+              box-shadow var(--dur-base) var(--ease);
   display: flex;
   flex-direction: column;
 }
 .product-card:hover {
   border-color: var(--border-accent);
-  box-shadow: 0 0 40px rgba(0,163,255,0.06);
-  transform: translateY(-4px);
+  box-shadow: var(--glow-blue-soft);
+  transform: translateY(-2px);
 }
 .product-card-img {
   position: relative;
@@ -911,7 +948,9 @@ ul, ol { list-style: none; }
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--sp-4);
+  justify-items: center;       /* keeps a single card centered in its row */
 }
+.product-grid > * { width: 100%; max-width: 320px; }
 @media (min-width: 640px)  { .product-grid { gap: var(--sp-5); } }
 @media (min-width: 768px)  { .product-grid { grid-template-columns: repeat(3, 1fr); } }
 @media (min-width: 1024px) { .product-grid { grid-template-columns: repeat(4, 1fr); } }
@@ -1223,34 +1262,97 @@ ul, ol { list-style: none; }
 .cart-total-row { display: flex; justify-content: space-between; font-size: 0.875rem; color: var(--text-secondary); }
 .cart-total-row.total { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); padding-top: var(--sp-2); border-top: 1px solid var(--border); }
 
+/* ─── Instagram Gallery Grid ─────────────────────────────────── */
+.ig-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+}
+.ig-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: block;
+  transition: transform var(--dur-base) var(--ease),
+              border-color var(--dur-base) var(--ease),
+              box-shadow var(--dur-base) var(--ease);
+}
+.ig-tile img { transition: transform 0.5s var(--ease); }
+.ig-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-accent);
+  box-shadow: var(--glow-blue-soft);
+}
+.ig-tile:hover img { transform: scale(1.05); }
+.ig-tile-hover {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(9,11,16,0);
+  color: rgba(255,255,255,0);
+  transition: background var(--dur-base) var(--ease),
+              color var(--dur-base) var(--ease);
+  pointer-events: none;
+}
+.ig-tile:hover .ig-tile-hover {
+  background: rgba(9,11,16,0.45);
+  color: rgba(255,255,255,0.9);
+}
+
 /* ─── Footer ─────────────────────────────────────────────────── */
+/* Tightened from `--sp-16 0 --sp-8` so short pages (cart-empty, sale-empty,
+   404) don't end with ~290 px of footer. The column-heading row aligns with
+   the brand block via `align-items: start` on the grid. */
 .site-footer {
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
-  padding: var(--sp-16) 0 var(--sp-8);
+  padding: var(--sp-10) 0 var(--sp-6);
 }
 .footer-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--sp-10);
-  margin-bottom: var(--sp-12);
+  gap: var(--sp-8);
+  margin-bottom: var(--sp-8);
+  align-items: start;
 }
-@media (min-width: 640px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; } }
+@media (min-width: 640px)  { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .footer-grid { grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--sp-10); } }
 
 .footer-brand-logo {
   font-size: 1.3rem; font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: var(--sp-2);
+  margin-bottom: var(--sp-1);
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 .footer-brand-logo span { background: var(--gradient-brand); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.footer-brand-tagline { font-size: 0.875rem; color: var(--accent-blue); margin-bottom: var(--sp-3); font-style: italic; }
-.footer-brand-desc { font-size: 0.875rem; color: var(--text-muted); line-height: 1.7; max-width: 260px; }
-.footer-col-title { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin-bottom: var(--sp-4); }
-.footer-links { display: flex; flex-direction: column; gap: 2px; }
-.footer-links a { display: block; font-size: 0.875rem; color: var(--text-secondary); transition: color var(--dur-fast); padding: 12px 0; min-height: 44px; line-height: 1.4; }
-.footer-links a:hover { color: var(--text-primary); }
+.footer-brand-tagline { font-size: 0.82rem; color: var(--accent-blue); margin-bottom: var(--sp-3); font-style: italic; }
+.footer-brand-desc { font-size: 0.86rem; color: var(--text-muted); line-height: 1.6; max-width: 260px; }
+/* Column heading aligns to the brand-logo baseline by sharing line-height and
+   removing the tagline-driven offset that was sitting one line lower. */
+.footer-col-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.2;
+  margin-bottom: var(--sp-3);
+  padding-top: 2px;
+}
+.footer-links { display: flex; flex-direction: column; gap: 0; }
+.footer-links a {
+  display: block;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  transition: color var(--dur-fast);
+  padding: 8px 0;            /* tighter than the previous 12px */
+  min-height: 36px;
+  line-height: 1.4;
+}
+.footer-links a:hover { color: var(--accent-blue); }
 .footer-social { display: flex; gap: var(--sp-2); margin-top: var(--sp-5); }
 .footer-social-btn {
   width: 44px; height: 44px;
@@ -1829,8 +1931,9 @@ ul, ol { list-style: none; }
 
 /* ─── Mobile tuning (audit fixes) ────────────────────────────── */
 @media (max-width: 767px) {
-  /* WhatsApp FAB clearance — keep page content above the floating button */
-  body { padding-bottom: 88px; }
+  /* WhatsApp FAB clearance — keep page content above the floating button.
+     The FAB itself uses safe-area-inset, so a small fixed pad is enough. */
+  body { padding-bottom: 72px; }
 
   /* Hide search on small phones — keep account (profile), cart + hamburger.
      The account icon sits next to the cart; the hamburger drawer also offers
@@ -1845,14 +1948,37 @@ ul, ol { list-style: none; }
     border-radius: var(--r-2xl);
     overflow: hidden;
     border: 1px solid var(--border);
-    margin-bottom: var(--sp-6);
+    margin-bottom: var(--sp-5);
     box-shadow: 0 0 40px rgba(0,163,255,0.08);
   }
   .hero-img-frame-mobile img { object-fit: cover; }
 
-  /* Hero CTAs full-width on mobile so they stack cleanly */
+  /* Hero CTAs full-width on mobile so they stack cleanly; sp-3 gap gives a
+     clean separation between buttons (was tighter at sp-2). */
+  .hero-actions { flex-direction: column; align-items: stretch; gap: var(--sp-3); }
   .hero-actions .btn { width: 100%; justify-content: center; }
-  .hero-actions { flex-direction: column; align-items: stretch; }
+
+  /* Phone hero takes less vertical room; bump the headline down a notch and
+     tighten the descriptive paragraph so it doesn't push the CTAs below fold. */
+  .hero-h1 { font-size: clamp(2rem, 9vw, 2.6rem); max-width: 18ch; }
+
+  /* Announcement bar: keep it to a single line on small screens by clipping
+     overflow rather than wrapping into a 3-line stack. */
+  .announcement-bar {
+    padding: 8px 40px;
+    font-size: 0.74rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+
+  /* Tighten section padding further on phones (was --sp-16, now --sp-10). */
+  .section    { padding: var(--sp-10) 0; }
+  .section-sm { padding: var(--sp-8) 0; }
+  .section-lg { padding: var(--sp-12) 0; }
+
+  .section-header { margin-bottom: var(--sp-6); }
 }
 @media (min-width: 768px) {
   .hero-img-frame-mobile { display: none; }

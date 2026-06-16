@@ -28,7 +28,8 @@ export default function WhatsAppFloat() {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [tooltipVisible, setTooltipVisible] = useState(false);
   // Default sits near the right-bottom corner; user-positioned values override
-  // once they drag the button.
+  // once they drag the button. The bottom default folds in env(safe-area-inset)
+  // via CSS so it never collides with the mobile gesture bar.
   const [pos, setPos] = useState<Position>({ right: 16, bottom: 24 });
   const [dragging, setDragging] = useState(false);
 
@@ -100,7 +101,12 @@ export default function WhatsAppFloat() {
     <div
       ref={wrapperRef}
       className={`whatsapp-float-wrapper ${dragging ? 'is-dragging' : ''}`}
-      style={{ right: pos.right, bottom: pos.bottom }}
+      style={{
+        right: pos.right,
+        // Stack the iOS / Android home-bar inset so the FAB never clips the
+        // gesture indicator on mobile devices.
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + ${pos.bottom}px)`,
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

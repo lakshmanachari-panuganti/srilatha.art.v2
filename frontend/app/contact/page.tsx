@@ -29,7 +29,7 @@ export default function ContactPage() {
 
           {/* Email card */}
           <a href={`mailto:${CONTACT.email}`} className="card" style={{ padding: 'var(--sp-6)', display: 'flex', gap: 'var(--sp-4)', alignItems: 'flex-start', textDecoration: 'none' }}>
-            <div style={{ width: 48, height: 48, borderRadius: 'var(--r-lg)', background: 'rgba(0,163,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 'var(--r-lg)', background: 'rgba(0,163,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" strokeWidth="2" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             </div>
             <div>
@@ -41,8 +41,8 @@ export default function ContactPage() {
 
           {/* Instagram card */}
           <a href={CONTACT.instagramUrl} target="_blank" rel="noopener noreferrer" className="card" style={{ padding: 'var(--sp-6)', display: 'flex', gap: 'var(--sp-4)', alignItems: 'flex-start', textDecoration: 'none' }}>
-            <div style={{ width: 48, height: 48, borderRadius: 'var(--r-lg)', background: 'rgba(123,97,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-purple)" strokeWidth="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            <div style={{ width: 48, height: 48, borderRadius: 'var(--r-lg)', background: 'rgba(0,163,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" strokeWidth="2" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
             </div>
             <div>
               <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Instagram</h2>
@@ -53,8 +53,8 @@ export default function ContactPage() {
 
           {/* Studio address card */}
           <div className="card" style={{ padding: 'var(--sp-6)', display: 'flex', gap: 'var(--sp-4)', alignItems: 'flex-start' }}>
-            <div style={{ width: 48, height: 48, borderRadius: 'var(--r-lg)', background: 'rgba(255,184,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" strokeWidth="2" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <div style={{ width: 48, height: 48, borderRadius: 'var(--r-lg)', background: 'rgba(0,163,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" strokeWidth="2" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
             </div>
             <div>
               <h2 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Studio</h2>
