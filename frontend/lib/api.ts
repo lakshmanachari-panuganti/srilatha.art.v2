@@ -3,8 +3,11 @@
  * Defaults to the Azure Functions dev URL in local dev (localhost:7071).
  */
 
-const RAW_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:7071/api';
-// Normalise: strip trailing slash.
+// Workflow exports NEXT_PUBLIC_API_BASE_URL; older convention NEXT_PUBLIC_API_URL also accepted.
+const RAW_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:7071/api';
 const API_BASE = RAW_BASE.replace(/\/+$/, '');
 
 export class ApiError extends Error {

@@ -6,10 +6,15 @@ const JWT_SECRET = process.env.JWT_SECRET ?? '';
 export interface AdminClaims {
   sub: string;        // admin id (email)
   name: string;
-  role: 'admin' | 'super_admin';
+  // Three role spellings are accepted: `admin`, `super_admin`, `superadmin`.
+  // The seed script (infra/seed-admin.ps1) writes `superadmin`; the setup
+  // endpoint writes `super_admin`. Both grant the same access.
+  role: 'admin' | 'super_admin' | 'superadmin';
   iat: number;
   exp: number;
 }
+
+const ADMIN_ROLES = new Set(['admin', 'super_admin', 'superadmin']);
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -36,7 +41,7 @@ export function readAdminClaims(request: HttpRequest): AdminClaims | null {
   if (!JWT_SECRET) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as AdminClaims;
-    if (decoded.role !== 'admin' && decoded.role !== 'super_admin') return null;
+    if (!ADMIN_ROLES.has(decoded.role)) return null;
     return decoded;
   } catch {
     return null;

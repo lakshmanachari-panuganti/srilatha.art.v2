@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { adminApi, clearAdminToken, setAdminToken, AdminApiError } from '@/lib/adminApi';
 
-interface AdminUser { email: string; name: string; role: 'admin' | 'super_admin' }
+interface AdminUser { email: string; name: string; role: 'admin' | 'super_admin' | 'superadmin' }
 
 interface AdminAuthValue {
   admin: AdminUser | null;
@@ -57,8 +57,12 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(USER_KEY, JSON.stringify(res.admin));
       setAdmin(res.admin);
     } catch (err) {
+      // Preserve the underlying error message instead of replacing it
+      // with a generic "Login failed" — the wrapped error already has
+      // detail (network failure, 401 body, etc).
       if (err instanceof AdminApiError) throw err;
-      throw new AdminApiError('Login failed', 0, err);
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new AdminApiError(detail, 0, err);
     }
   };
 

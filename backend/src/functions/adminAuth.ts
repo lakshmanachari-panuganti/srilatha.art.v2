@@ -30,8 +30,12 @@ interface AdminEntity {
   email: string;
   passwordHash: string;
   name: string;
-  role: 'admin' | 'super_admin';
-  active: boolean;
+  role: 'admin' | 'super_admin' | 'superadmin';
+  // Two field names exist in the wild:
+  //   - `active`    (this function's setup endpoint)
+  //   - `isActive`  (infra/seed-admin.ps1 — operator-bootstrapped admins)
+  active?: boolean;
+  isActive?: boolean;
   createdAt: string;
   lastLoginAt?: string;
 }
@@ -109,8 +113,13 @@ async function adminLogin(
     const email = body.email.toLowerCase().trim();
 
     const admin = await getEntity<AdminEntity>('admins', 'admin', email);
-    if (!admin || admin.active === false) {
+    if (!admin) {
       return json({ error: 'Invalid email or password' }, 401);
+    }
+    // Accept either `active` or `isActive` (operator-bootstrapped rows use isActive).
+    const isActive = admin.active !== false && admin.isActive !== false;
+    if (!isActive) {
+      return json({ error: 'Account disabled' }, 401);
     }
 
     const ok = await bcrypt.compare(body.password, admin.passwordHash);

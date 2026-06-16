@@ -3,7 +3,10 @@
  * (key: srilatha_admin_token) to every request.
  */
 
-const RAW_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:7071/api';
+const RAW_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:7071/api';
 const API_BASE = RAW_BASE.replace(/\/+$/, '');
 
 const TOKEN_KEY = 'srilatha_admin_token';
@@ -32,14 +35,21 @@ export function clearAdminToken() {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (err) {
+    // Network / CORS / DNS failure — fetch never produced a Response.
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new AdminApiError(`Cannot reach API at ${API_BASE} — ${detail}`, 0, err);
+  }
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await res.json().catch(() => undefined) : await res.text();
@@ -58,7 +68,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface AdminLoginResponse {
   token: string;
   expiresIn: number;
-  admin: { email: string; name: string; role: 'admin' | 'super_admin' };
+  admin: { email: string; name: string; role: 'admin' | 'super_admin' | 'superadmin' };
 }
 
 export const adminApi = {
