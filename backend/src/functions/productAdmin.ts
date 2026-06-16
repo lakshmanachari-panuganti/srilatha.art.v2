@@ -238,18 +238,22 @@ async function adminDeleteProduct(request: HttpRequest, context: InvocationConte
   }
 }
 
-app.http('adminCreateProduct', {
-  route: 'mgmt/products',
-  methods: ['POST', 'OPTIONS'],
-  authLevel: 'anonymous',
-  handler: adminCreateProduct,
-});
-
+// Two functions share the route `mgmt/products`. Azure Functions silently
+// breaks routing when more than one handler registers the same (route, method)
+// pair — including the CORS preflight `OPTIONS`. Only the first handler on each
+// route registers OPTIONS; the others register their own verb only.
 app.http('adminListProducts', {
   route: 'mgmt/products',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: adminListProducts,
+});
+
+app.http('adminCreateProduct', {
+  route: 'mgmt/products',
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  handler: adminCreateProduct,
 });
 
 app.http('adminUpdateProduct', {
@@ -261,7 +265,7 @@ app.http('adminUpdateProduct', {
 
 app.http('adminDeleteProduct', {
   route: 'mgmt/products/{id}',
-  methods: ['DELETE', 'OPTIONS'],
+  methods: ['DELETE'],
   authLevel: 'anonymous',
   handler: adminDeleteProduct,
 });

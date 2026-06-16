@@ -148,8 +148,10 @@ async function adminCouponRedemptions(request: HttpRequest, context: InvocationC
   }
 }
 
-app.http('adminListCoupons', { route: 'mgmt/coupons', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCoupons });
-app.http('adminCreateCoupon', { route: 'mgmt/coupons', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminCreateCoupon });
-app.http('adminUpdateCoupon', { route: 'mgmt/coupons/{code}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCoupon });
-app.http('adminDeleteCoupon', { route: 'mgmt/coupons/{code}', methods: ['DELETE', 'OPTIONS'], authLevel: 'anonymous', handler: adminDeleteCoupon });
-app.http('adminCouponRedemptions', { route: 'mgmt/coupons/{code}/redemptions', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminCouponRedemptions });
+// OPTIONS lives only on the first handler per route (Azure Functions silently
+// breaks routing when the same (route, method) is registered twice).
+app.http('adminListCoupons',         { route: 'mgmt/coupons',                       methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCoupons });
+app.http('adminCreateCoupon',        { route: 'mgmt/coupons',                       methods: ['POST'],           authLevel: 'anonymous', handler: adminCreateCoupon });
+app.http('adminUpdateCoupon',        { route: 'mgmt/coupons/{code}',                methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCoupon });
+app.http('adminDeleteCoupon',        { route: 'mgmt/coupons/{code}',                methods: ['DELETE'],         authLevel: 'anonymous', handler: adminDeleteCoupon });
+app.http('adminCouponRedemptions',   { route: 'mgmt/coupons/{code}/redemptions',    methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminCouponRedemptions });

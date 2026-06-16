@@ -140,8 +140,9 @@ async function adminDeleteAnnouncement(request: HttpRequest, context: Invocation
   }
 }
 
-app.http('getPublicAnnouncements', { route: 'announcements', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: getPublicAnnouncements });
-app.http('adminListAnnouncements', { route: 'mgmt/announcements', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListAnnouncements });
-app.http('adminCreateAnnouncement', { route: 'mgmt/announcements', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminCreateAnnouncement });
+app.http('getPublicAnnouncements',  { route: 'announcements',          methods: ['GET', 'OPTIONS'],  authLevel: 'anonymous', handler: getPublicAnnouncements });
+// OPTIONS lives only on the first handler per route — see comment in productAdmin.ts.
+app.http('adminListAnnouncements',  { route: 'mgmt/announcements',     methods: ['GET', 'OPTIONS'],  authLevel: 'anonymous', handler: adminListAnnouncements });
+app.http('adminCreateAnnouncement', { route: 'mgmt/announcements',     methods: ['POST'],            authLevel: 'anonymous', handler: adminCreateAnnouncement });
 app.http('adminUpdateAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateAnnouncement });
-app.http('adminDeleteAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['DELETE', 'OPTIONS'], authLevel: 'anonymous', handler: adminDeleteAnnouncement });
+app.http('adminDeleteAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['DELETE'],         authLevel: 'anonymous', handler: adminDeleteAnnouncement });
