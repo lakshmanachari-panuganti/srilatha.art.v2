@@ -54,6 +54,9 @@ export default function HomePage() {
 
         <div className="container">
           <div className="hero-content">
+            <div className="hero-img-frame-mobile">
+              <Image src="/images/resin-art-hero.png" alt="Resin Art by Srilatha" fill priority sizes="(max-width: 767px) 100vw, 0" style={{ objectFit: 'cover' }} />
+            </div>
             <div className="hero-eyebrow">
               <span className="eyebrow">
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-green)', boxShadow: 'var(--glow-green)', display: 'inline-block' }} />
@@ -61,9 +64,11 @@ export default function HomePage() {
               </span>
             </div>
 
-            <h1 className="hero h1" style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2.6rem,8vw,5.5rem)', fontWeight: 900, lineHeight: 1.06, letterSpacing: '-0.03em', color: 'var(--text-primary)', marginBottom: 'var(--sp-5)' }}>
-              Heirloom Resin Art<br />
-              Made <em style={{ fontStyle: 'normal', background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>One Piece</em> at a Time
+            <h1 className="hero-h1">
+              <span className="hero-h1-line">Heirloom Resin Art</span>
+              <span className="hero-h1-line">
+                Made <em className="hero-h1-em">One&nbsp;Piece</em> at a Time
+              </span>
             </h1>
 
             <p className="hero-desc">
@@ -119,7 +124,6 @@ export default function HomePage() {
                 key={c.id}
                 href={`/shop?category=${c.id}`}
                 className={`collection-card ${c.primary ? 'collection-card-primary' : 'collection-card-secondary'}`}
-                style={{ aspectRatio: c.primary ? '16/9' : '4/5' }}
               >
                 <Image src={c.img} alt={c.label} fill style={{ objectFit: 'cover' }} />
                 <div className="collection-card-overlay">
