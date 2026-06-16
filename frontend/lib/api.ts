@@ -199,3 +199,19 @@ export function listProducts(params: ListProductsParams = {}) {
 export function getProductBySlug(slug: string) {
   return request<Product>(`/products/${encodeURIComponent(slug)}`);
 }
+
+// ─── Announcements (public) ──────────────────────────────────────────────────
+
+export interface PublicAnnouncement {
+  id: string;
+  message: string;
+  cta?: string;
+  link?: string;
+  startDate?: string;
+  endDate?: string;
+  priority: number;
+}
+
+export function listAnnouncements() {
+  return request<{ announcements: PublicAnnouncement[] }>('/announcements');
+}

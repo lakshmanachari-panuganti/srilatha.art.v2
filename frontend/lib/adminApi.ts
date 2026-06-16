@@ -302,6 +302,7 @@ export interface AdminCoupon {
 export interface AdminAnnouncement {
   id: string;
   message: string;
+  cta?: string;
   link?: string;
   startDate?: string;
   endDate?: string;

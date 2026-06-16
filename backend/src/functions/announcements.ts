@@ -18,7 +18,8 @@ interface AnnouncementEntity {
   partitionKey: string;       // 'announcement'
   rowKey: string;             // uuid
   message: string;
-  link?: string;
+  cta?: string;               // optional CTA label (e.g. "Shop Now")
+  link?: string;              // optional CTA url (e.g. "/shop")
   startDate?: string;
   endDate?: string;
   active: boolean;
@@ -32,6 +33,7 @@ function toApi(e: AnnouncementEntity) {
   return {
     id: e.rowKey,
     message: e.message,
+    cta: e.cta,
     link: e.link,
     startDate: e.startDate,
     endDate: e.endDate,
@@ -90,6 +92,7 @@ async function adminCreateAnnouncement(request: HttpRequest, context: Invocation
       partitionKey: 'announcement',
       rowKey: id,
       message: body.message,
+      cta: body.cta,
       link: body.link,
       startDate: body.startDate,
       endDate: body.endDate,
