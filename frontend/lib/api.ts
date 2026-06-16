@@ -40,6 +40,28 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// ─── Customer Auth ───────────────────────────────────────────────────────────
+
+export interface AuthResponse {
+  token: string;
+  expiresIn: number;
+  user: { email: string; name: string; picture?: string };
+}
+
+export function authRegister(input: { name: string; email: string; password: string; mobile?: string }) {
+  return request<AuthResponse>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function authLogin(input: { email: string; password: string }) {
+  return request<AuthResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 // ─── Coupons ─────────────────────────────────────────────────────────────────
 
 export interface ValidateCouponResponse {
@@ -109,4 +131,39 @@ export function verifyPayment(orderId: string, input: VerifyPaymentInput) {
       body: JSON.stringify(input),
     },
   );
+}
+
+// ─── Products ────────────────────────────────────────────────────────────────
+
+import type { Product } from './data';
+
+export interface ListProductsParams {
+  category?: string;
+  bestSeller?: boolean;
+  newArrival?: boolean;
+  onSale?: boolean;
+  inStock?: boolean;
+  limit?: number;
+}
+
+export interface ListProductsResponse {
+  products: Product[];
+  total: number;
+  page: number;
+}
+
+export function listProducts(params: ListProductsParams = {}) {
+  const search = new URLSearchParams();
+  if (params.category && params.category !== 'all') search.set('category', params.category);
+  if (params.bestSeller) search.set('bestSeller', 'true');
+  if (params.newArrival) search.set('newArrival', 'true');
+  if (params.onSale) search.set('onSale', 'true');
+  if (params.inStock !== undefined) search.set('inStock', String(params.inStock));
+  if (params.limit) search.set('limit', String(params.limit));
+  const qs = search.toString();
+  return request<ListProductsResponse>(`/products${qs ? `?${qs}` : ''}`);
+}
+
+export function getProductBySlug(slug: string) {
+  return request<Product>(`/products/${encodeURIComponent(slug)}`);
 }
