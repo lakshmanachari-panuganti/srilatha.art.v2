@@ -1,0 +1,26 @@
+4. order_cancelled
+
+Trigger:
+Order Status:
+-> CANCELLED
+
+Variables:
+{{1}} Customer Name
+{{2}} Order Number
+{{3}} Store Contact Number
+
+
+Template:
+Hello {{1}},
+
+Your order {{2}} has been cancelled as requested or per update from our support team.
+
+If any payment was captured, the refund (if applicable) will be processed as per our policy.
+
+If you have any questions, please feel free to contact us -
+
+📞 Call/WhatsApp: {{3}}
+✉️ Email: studio@srilatha.art
+🌐 www.srilatha.art
+
+-Srilatha Art

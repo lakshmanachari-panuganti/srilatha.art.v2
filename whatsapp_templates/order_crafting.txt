@@ -1,0 +1,25 @@
+1. order_crafting
+
+Trigger:
+Order Status:
+CONFIRMED -> CRAFTING
+
+Variables:
+{{1}} Customer Name
+{{2}} Order Number
+{{3}} Store Contact Number
+
+Template:
+Hello {{1}},
+
+We have started crafting your order {{2}}.
+
+We are handmaking your artwork with care, and we will keep you updated at each stage.
+
+If you have any questions, please feel free to contact us -
+
+📞 Call/WhatsApp: {{3}}
+✉️ Email: studio@srilatha.art
+🌐 www.srilatha.art
+
+-Srilatha Art

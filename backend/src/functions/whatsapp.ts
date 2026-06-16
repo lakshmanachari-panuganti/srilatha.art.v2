@@ -105,6 +105,34 @@ export function buildShippedMessage(params: {
   ].join('\n');
 }
 
+const STORE_CONTACT_NUMBER = '+91 9052380325';
+
+export function buildPasswordResetOtpMessage(params: {
+  name: string;
+  otp: string;
+  validityMinutes: number;
+}): string {
+  return [
+    `Hello ${params.name},`,
+    '',
+    'We received a request to reset your account password.',
+    '',
+    `Your one-time password (OTP) is: ${params.otp}`,
+    '',
+    `This OTP is valid for ${params.validityMinutes} minutes. Please do not share it with anyone.`,
+    '',
+    'If you did not request this, please ignore this message or contact us immediately.',
+    '',
+    'If you have any questions, please feel free to contact us -',
+    '',
+    `📞 Call/WhatsApp: ${STORE_CONTACT_NUMBER}`,
+    '✉️ Email: studio@srilatha.art',
+    '🌐 www.srilatha.art',
+    '',
+    '-Srilatha Art',
+  ].join('\n');
+}
+
 export function buildCustomOrderMessage(params: {
   name: string;
   phone: string;

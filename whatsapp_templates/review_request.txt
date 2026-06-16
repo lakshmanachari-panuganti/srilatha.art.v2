@@ -1,0 +1,30 @@
+6. review_request
+
+Trigger:
+Order Status:
+DELIVERED
+Delay:
+72 hours
+
+Variables:
+{{1}} Customer Name
+{{2}} Review Link
+{{3}} Store Contact Number
+
+Template:
+Hello {{1}},
+
+We hope your artwork has arrived safely and you are happy with it.
+
+Your feedback helps our small studio grow and helps other customers discover handmade art.
+
+Please share your review here:
+{{2}}
+
+If you have any questions, please feel free to contact us -
+
+📞 Call/WhatsApp: {{3}}
+✉️ Email: studio@srilatha.art
+🌐 www.srilatha.art
+
+-Srilatha Art

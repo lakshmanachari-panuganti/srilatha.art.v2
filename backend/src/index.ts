@@ -7,6 +7,8 @@ import './functions/custom-orders';
 import './functions/coupons';
 import './functions/adminAuth';
 import './functions/customerAuth';
+import './functions/customerGoogleAuth';
+import './functions/customerPasswordReset';
 import './functions/productAdmin';
 import './functions/orderAdmin';
 import './functions/couponsAdmin';
