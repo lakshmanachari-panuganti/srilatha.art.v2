@@ -2,7 +2,15 @@
 import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth, GOOGLE_CLIENT_ID_CONFIGURED } from './AuthProvider';
 import { useEffect, useState } from 'react';
-import { authLogin, authRegister, ApiError } from '@/lib/api';
+import {
+  authLogin,
+  authRegister,
+  authGoogle,
+  forgotPasswordRequest,
+  forgotPasswordVerify,
+  forgotPasswordReset,
+  ApiError,
+} from '@/lib/api';
 import Link from 'next/link';
 
 interface AuthModalProps {
@@ -11,7 +19,8 @@ interface AuthModalProps {
   defaultTab?: 'signin' | 'register';
 }
 
-type Tab = 'signin' | 'register';
+type Tab = 'signin' | 'register' | 'forgot';
+type ForgotStep = 'phone' | 'otp' | 'password';
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -38,10 +47,11 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
   const { login } = useAuth();
   const [tab, setTab] = useState<Tab>(defaultTab);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Sign-in form state
-  const [siEmail, setSiEmail] = useState('');
+  // Sign-in form state — identifier is email OR phone
+  const [siIdentifier, setSiIdentifier] = useState('');
   const [siPassword, setSiPassword] = useState('');
   const [siShowPw, setSiShowPw] = useState(false);
 
@@ -54,29 +64,33 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
   const [rShowPw, setRShowPw] = useState(false);
   const [rShowConfirm, setRShowConfirm] = useState(false);
 
-  useEffect(() => { if (isOpen) { setError(''); setTab(defaultTab); } }, [isOpen, defaultTab]);
+  // Forgot password state
+  const [fStep, setFStep] = useState<ForgotStep>('phone');
+  const [fPhone, setFPhone] = useState('');
+  const [fOtp, setFOtp] = useState('');
+  const [fResetToken, setFResetToken] = useState('');
+  const [fNewPw, setFNewPw] = useState('');
+  const [fConfirmPw, setFConfirmPw] = useState('');
+  const [fValidity, setFValidity] = useState(15);
+
+  useEffect(() => {
+    if (isOpen) {
+      setError(''); setInfo('');
+      setTab(defaultTab);
+      setFStep('phone'); setFOtp(''); setFResetToken(''); setFNewPw(''); setFConfirmPw('');
+    }
+  }, [isOpen, defaultTab]);
 
   const handleGoogleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
         setLoading(true);
         setError('');
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        const userInfo = await res.json();
-        const syntheticToken =
-          btoa(JSON.stringify({ alg: 'none' })) + '.' +
-          btoa(JSON.stringify({
-            email: userInfo.email,
-            name: userInfo.name,
-            picture: userInfo.picture,
-            exp: Math.floor(Date.now() / 1000) + 3600,
-          })) + '.';
-        login(syntheticToken);
+        const res = await authGoogle({ accessToken: tokenResponse.access_token });
+        login(res.token);
         onClose();
       } catch (err) {
-        setError('Failed to fetch profile. Please try again.');
+        setError(err instanceof ApiError ? err.message : 'Google sign-in failed. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -87,10 +101,10 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
   const submitSignin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!siEmail || !siPassword) { setError('Please enter your email and password.'); return; }
+    if (!siIdentifier || !siPassword) { setError('Please enter your email/phone and password.'); return; }
     try {
       setLoading(true);
-      const res = await authLogin({ email: siEmail, password: siPassword });
+      const res = await authLogin({ identifier: siIdentifier, password: siPassword });
       login(res.token);
       onClose();
     } catch (err) {
@@ -123,6 +137,58 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     }
   };
 
+  const submitForgotRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setInfo('');
+    if (!fPhone.trim()) { setError('Please enter your registered phone number.'); return; }
+    try {
+      setLoading(true);
+      const res = await forgotPasswordRequest({ phone: fPhone.trim() });
+      setFValidity(res.validityMinutes);
+      if (res.devOtp) setFOtp(res.devOtp);   // dev-only convenience
+      setInfo(`We've sent a 6-digit OTP via WhatsApp. It's valid for ${res.validityMinutes} minutes.`);
+      setFStep('otp');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start password reset. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitForgotVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setInfo('');
+    if (!fOtp || fOtp.length < 4) { setError('Please enter the OTP from WhatsApp.'); return; }
+    try {
+      setLoading(true);
+      const res = await forgotPasswordVerify({ phone: fPhone.trim(), otp: fOtp.trim() });
+      setFResetToken(res.resetToken);
+      setInfo('OTP verified. Choose a new password.');
+      setFStep('password');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Invalid or expired OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitForgotReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setInfo('');
+    if (fNewPw.length < 8) { setError('Password must be at least 8 characters.'); return; }
+    if (fNewPw !== fConfirmPw) { setError('Passwords do not match.'); return; }
+    try {
+      setLoading(true);
+      const res = await forgotPasswordReset({ resetToken: fResetToken, newPassword: fNewPw });
+      login(res.token);
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not reset password. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -135,27 +201,31 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
           <h2 id="auth-title" className="auth-title">
             Srilatha&nbsp;<span className="auth-title-grad">Art</span>
           </h2>
-          <p className="auth-subtitle">Sign in to your account or create a new one</p>
+          <p className="auth-subtitle">
+            {tab === 'forgot' ? 'Reset your password with WhatsApp OTP' : 'Sign in to your account or create a new one'}
+          </p>
         </div>
 
-        <div className="auth-tabs" role="tablist">
-          <button
-            role="tab"
-            aria-selected={tab === 'signin'}
-            className={`auth-tab ${tab === 'signin' ? 'is-active' : ''}`}
-            onClick={() => { setTab('signin'); setError(''); }}
-          >
-            Sign in
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === 'register'}
-            className={`auth-tab ${tab === 'register' ? 'is-active' : ''}`}
-            onClick={() => { setTab('register'); setError(''); }}
-          >
-            Create account
-          </button>
-        </div>
+        {tab !== 'forgot' && (
+          <div className="auth-tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === 'signin'}
+              className={`auth-tab ${tab === 'signin' ? 'is-active' : ''}`}
+              onClick={() => { setTab('signin'); setError(''); setInfo(''); }}
+            >
+              Sign in
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === 'register'}
+              className={`auth-tab ${tab === 'register' ? 'is-active' : ''}`}
+              onClick={() => { setTab('register'); setError(''); setInfo(''); }}
+            >
+              Create account
+            </button>
+          </div>
+        )}
 
         {tab === 'signin' && (
           <div className="auth-panel">
@@ -173,16 +243,16 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
 
             <form onSubmit={submitSignin} className="auth-form" noValidate>
               <label className="auth-field">
-                <span className="auth-label">Email address <em>*</em></span>
+                <span className="auth-label">Email or phone <em>*</em></span>
                 <input
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
+                  type="text"
+                  autoComplete="username"
                   required
-                  placeholder="you@example.com"
+                  placeholder="you@example.com or +91 98765 43210"
                   className="auth-input"
-                  value={siEmail}
-                  onChange={(e) => setSiEmail(e.target.value)}
+                  value={siIdentifier}
+                  onChange={(e) => setSiIdentifier(e.target.value)}
+                  data-testid="login-identifier"
                 />
               </label>
 
@@ -197,6 +267,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                     className="auth-input"
                     value={siPassword}
                     onChange={(e) => setSiPassword(e.target.value)}
+                    data-testid="login-password"
                   />
                   <button
                     type="button"
@@ -209,16 +280,27 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                 </div>
               </label>
 
-              {error && <p className="auth-error">{error}</p>}
+              {error && <p className="auth-error" data-testid="auth-error">{error}</p>}
 
-              <button type="submit" disabled={loading} className="btn btn-primary btn-full pulse-glow auth-submit">
+              <button type="submit" disabled={loading} data-testid="login-submit" className="btn btn-primary btn-full pulse-glow auth-submit">
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
 
             <p className="auth-switch">
+              <button
+                type="button"
+                className="auth-link"
+                data-testid="forgot-password-link"
+                onClick={() => { setTab('forgot'); setError(''); setInfo(''); setFStep('phone'); }}
+              >
+                Forgot your password?
+              </button>
+            </p>
+
+            <p className="auth-switch">
               Don&apos;t have an account?{' '}
-              <button type="button" className="auth-link" onClick={() => { setTab('register'); setError(''); }}>Create one</button>
+              <button type="button" className="auth-link" onClick={() => { setTab('register'); setError(''); setInfo(''); }}>Create one</button>
             </p>
           </div>
         )}
@@ -236,6 +318,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                   className="auth-input"
                   value={rName}
                   onChange={(e) => setRName(e.target.value)}
+                  data-testid="register-name"
                 />
               </label>
 
@@ -250,6 +333,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                   className="auth-input"
                   value={rEmail}
                   onChange={(e) => setREmail(e.target.value)}
+                  data-testid="register-email"
                 />
               </label>
 
@@ -265,6 +349,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                     className="auth-input"
                     value={rPassword}
                     onChange={(e) => setRPassword(e.target.value)}
+                    data-testid="register-password"
                   />
                   <button type="button" onClick={() => setRShowPw(v => !v)} className="auth-eye" aria-label={rShowPw ? 'Hide password' : 'Show password'}>
                     <EyeIcon open={rShowPw} />
@@ -283,6 +368,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                     className="auth-input"
                     value={rConfirm}
                     onChange={(e) => setRConfirm(e.target.value)}
+                    data-testid="register-confirm"
                   />
                   <button type="button" onClick={() => setRShowConfirm(v => !v)} className="auth-eye" aria-label={rShowConfirm ? 'Hide password' : 'Show password'}>
                     <EyeIcon open={rShowConfirm} />
@@ -300,12 +386,13 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                   className="auth-input"
                   value={rMobile}
                   onChange={(e) => setRMobile(e.target.value)}
+                  data-testid="register-mobile"
                 />
               </label>
 
-              {error && <p className="auth-error">{error}</p>}
+              {error && <p className="auth-error" data-testid="auth-error">{error}</p>}
 
-              <button type="submit" disabled={loading} className="btn btn-primary btn-full pulse-glow auth-submit">
+              <button type="submit" disabled={loading} data-testid="register-submit" className="btn btn-primary btn-full pulse-glow auth-submit">
                 {loading ? 'Creating account…' : 'Create account'}
               </button>
             </form>
@@ -324,7 +411,108 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
 
             <p className="auth-switch">
               Already have an account?{' '}
-              <button type="button" className="auth-link" onClick={() => { setTab('signin'); setError(''); }}>Sign in</button>
+              <button type="button" className="auth-link" onClick={() => { setTab('signin'); setError(''); setInfo(''); }}>Sign in</button>
+            </p>
+          </div>
+        )}
+
+        {tab === 'forgot' && (
+          <div className="auth-panel">
+            {fStep === 'phone' && (
+              <form onSubmit={submitForgotRequest} className="auth-form" noValidate>
+                <label className="auth-field">
+                  <span className="auth-label">Registered phone number <em>*</em></span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    required
+                    placeholder="+91 98765 43210"
+                    className="auth-input"
+                    value={fPhone}
+                    onChange={(e) => setFPhone(e.target.value)}
+                    data-testid="forgot-phone"
+                  />
+                </label>
+                {info && <p className="auth-info" data-testid="auth-info">{info}</p>}
+                {error && <p className="auth-error" data-testid="auth-error">{error}</p>}
+                <button type="submit" disabled={loading} data-testid="forgot-request-submit" className="btn btn-primary btn-full pulse-glow auth-submit">
+                  {loading ? 'Sending OTP…' : 'Send OTP on WhatsApp'}
+                </button>
+              </form>
+            )}
+
+            {fStep === 'otp' && (
+              <form onSubmit={submitForgotVerify} className="auth-form" noValidate>
+                <label className="auth-field">
+                  <span className="auth-label">Enter OTP <em>*</em></span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    required
+                    placeholder="6-digit code"
+                    className="auth-input"
+                    value={fOtp}
+                    onChange={(e) => setFOtp(e.target.value.replace(/\D/g, ''))}
+                    data-testid="forgot-otp"
+                  />
+                </label>
+                {info && <p className="auth-info" data-testid="auth-info">{info}</p>}
+                {error && <p className="auth-error" data-testid="auth-error">{error}</p>}
+                <button type="submit" disabled={loading} data-testid="forgot-verify-submit" className="btn btn-primary btn-full pulse-glow auth-submit">
+                  {loading ? 'Verifying…' : 'Verify OTP'}
+                </button>
+                <p className="auth-switch">
+                  Code valid for {fValidity} minutes.{' '}
+                  <button type="button" className="auth-link" onClick={() => { setFStep('phone'); setInfo(''); setError(''); }}>
+                    Use a different number
+                  </button>
+                </p>
+              </form>
+            )}
+
+            {fStep === 'password' && (
+              <form onSubmit={submitForgotReset} className="auth-form" noValidate>
+                <label className="auth-field">
+                  <span className="auth-label">New password <em>*</em></span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    placeholder="Min. 8 characters"
+                    className="auth-input"
+                    value={fNewPw}
+                    onChange={(e) => setFNewPw(e.target.value)}
+                    data-testid="forgot-new-password"
+                  />
+                </label>
+                <label className="auth-field">
+                  <span className="auth-label">Confirm password <em>*</em></span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    placeholder="Repeat password"
+                    className="auth-input"
+                    value={fConfirmPw}
+                    onChange={(e) => setFConfirmPw(e.target.value)}
+                    data-testid="forgot-confirm-password"
+                  />
+                </label>
+                {info && <p className="auth-info" data-testid="auth-info">{info}</p>}
+                {error && <p className="auth-error" data-testid="auth-error">{error}</p>}
+                <button type="submit" disabled={loading} data-testid="forgot-reset-submit" className="btn btn-primary btn-full pulse-glow auth-submit">
+                  {loading ? 'Resetting…' : 'Reset password & sign in'}
+                </button>
+              </form>
+            )}
+
+            <p className="auth-switch">
+              Remembered it?{' '}
+              <button type="button" className="auth-link" onClick={() => { setTab('signin'); setError(''); setInfo(''); }}>Back to sign in</button>
             </p>
           </div>
         )}

@@ -2035,6 +2035,15 @@ ul, ol { list-style: none; }
   border-radius: var(--r-md);
   line-height: 1.4;
 }
+.auth-info {
+  font-size: 0.85rem;
+  color: #86EFAC;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  line-height: 1.4;
+}
 
 .auth-submit { min-height: 50px; font-size: 0.95rem; letter-spacing: 0.02em; }
 

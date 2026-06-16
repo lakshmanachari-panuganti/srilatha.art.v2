@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth, GOOGLE_CLIENT_ID_CONFIGURED } from '@/components/auth/AuthProvider';
+import { authGoogle, ApiError } from '@/lib/api';
 
 function LoginInner() {
   const router = useRouter();
@@ -21,22 +22,11 @@ function LoginInner() {
     onSuccess: async (tokenResponse) => {
       try {
         setLoading(true);
-        const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        const userInfo = await res.json();
-        const syntheticToken =
-          btoa(JSON.stringify({ alg: 'none' })) + '.' +
-          btoa(JSON.stringify({
-            email: userInfo.email,
-            name: userInfo.name,
-            picture: userInfo.picture,
-            exp: Math.floor(Date.now() / 1000) + 3600,
-          })) + '.';
-        login(syntheticToken);
+        const res = await authGoogle({ accessToken: tokenResponse.access_token });
+        login(res.token);
         router.replace(next);
-      } catch {
-        setError('Failed to fetch profile. Please try again.');
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Failed to sign in with Google. Please try again.');
       } finally {
         setLoading(false);
       }
