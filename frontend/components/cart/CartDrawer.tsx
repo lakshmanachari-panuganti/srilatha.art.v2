@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCart } from '@/components/cart/CartProvider';
 import { formatPrice } from '@/lib/data';
+import { PLACEHOLDER_PRODUCT_IMG } from '@/lib/assets';
 
 export default function CartDrawer() {
   const { isOpen, closeCart, items, removeItem, updateQty, itemCount } = useCart();
@@ -97,7 +98,7 @@ export default function CartDrawer() {
               <div key={`${item.product.id}-${item.variant}`} className="cart-item">
                 <div className="cart-item-img">
                   <Image
-                    src={item.product.images[0] || '/images/resin-art-hero.png'}
+                    src={item.product.images[0] || PLACEHOLDER_PRODUCT_IMG}
                     alt={item.product.name}
                     width={72} height={72}
                     style={{ objectFit: 'cover', width: '100%', height: '100%' }}

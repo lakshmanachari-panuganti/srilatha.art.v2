@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { waLink } from "@/lib/contact";
+import { seedImg } from "@/lib/assets";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FormData {
@@ -219,7 +220,7 @@ export default function CustomOrderPage() {
       <section className="co-hero">
         <div className="co-hero-bg" aria-hidden="true">
           <Image
-            src="/images/artist-working.png"
+            src={seedImg("resin-art-hero.png")}
             alt=""
             fill
             style={{ objectFit: "cover", objectPosition: "center top" }}

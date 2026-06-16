@@ -1,23 +1,54 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getProductBySlug, PRODUCTS, REVIEWS, formatPrice } from '@/lib/data';
+import type { Product } from '@/lib/data';
+import { formatPrice } from '@/lib/data';
 import ProductCard from '@/components/shop/ProductCard';
 import ProductActions, { ImageGallery, ProductTabs } from './ProductActions';
 import { Brush, Box, CheckCircle2, Lock } from 'lucide-react';
 
+// Build-time data fetching. Static export needs the slug list up front; new
+// admin products require a redeploy before their detail page exists.
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  'http://localhost:7071/api'
+).replace(/\/+$/, '');
+
+async function fetchAllProducts(): Promise<Product[]> {
+  try {
+    const res = await fetch(`${API_BASE}/products?limit=200`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json() as { products?: Product[] };
+    return data.products ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function fetchProductBySlug(slug: string): Promise<Product | null> {
+  try {
+    const res = await fetch(`${API_BASE}/products/${encodeURIComponent(slug)}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json() as Product;
+  } catch {
+    return null;
+  }
+}
+
 export async function generateStaticParams() {
-  return PRODUCTS.map((p) => ({ slug: p.slug }));
+  const all = await fetchAllProducts();
+  return all.map(p => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await fetchProductBySlug(slug);
   if (!product) return { title: 'Product Not Found' };
   return {
     title: product.name,
     description: product.shortDesc,
-    openGraph: { title: `${product.name} | Srilatha Art`, description: product.shortDesc, images: [{ url: product.images[0] }] },
+    openGraph: { title: `${product.name} | Srilatha Art`, description: product.shortDesc, images: product.images?.[0] ? [{ url: product.images[0] }] : [] },
   };
 }
 
@@ -35,36 +66,29 @@ function StarRating({ rating, size = '1rem' }: { rating: number; size?: string }
   );
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await fetchProductBySlug(slug);
   if (!product) notFound();
 
-  const reviews = REVIEWS.filter((r) => r.productId === product.id);
-  const avgRating = reviews.length > 0
-    ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-    : product.rating;
-
-  const related = PRODUCTS.filter((p) => p.category === product.category && p.id !== product.id).slice(0, 4);
+  const allProducts = await fetchAllProducts();
+  const related = allProducts.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
   const discountPct = product.originalPrice
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
 
+  const categoryLabel = CATEGORY_LABELS[String(product.category)] ?? String(product.category);
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)', paddingBottom: 'var(--sp-16)' }}>
       <div className="container" style={{ paddingTop: 'var(--sp-8)' }}>
-
         {/* Breadcrumb */}
         <nav className="breadcrumb" aria-label="Breadcrumb">
           <Link href="/">Home</Link>
           <span className="breadcrumb-sep">›</span>
           <Link href="/shop">Shop</Link>
           <span className="breadcrumb-sep">›</span>
-          <Link href={`/shop?category=${product.category}`}>{CATEGORY_LABELS[product.category]}</Link>
+          <Link href={`/shop?category=${product.category}`}>{categoryLabel}</Link>
           <span className="breadcrumb-sep">›</span>
           <span className="current">{product.name}</span>
         </nav>
@@ -73,13 +97,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <div className="product-detail-grid">
           {/* LEFT — Image Gallery */}
           <div>
-            <ImageGallery images={product.images} productName={product.name} />
+            <ImageGallery images={product.images ?? []} productName={product.name} />
           </div>
 
           {/* RIGHT — Details */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-5)' }}>
             <span className="badge badge-gold" style={{ alignSelf: 'flex-start' }}>
-              {CATEGORY_LABELS[product.category]}
+              {categoryLabel}
             </span>
 
             <h1 style={{
@@ -95,9 +119,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 {product.rating.toFixed(1)}
               </span>
-              <a href="#reviews" style={{ fontSize: '0.82rem', color: 'var(--accent-blue)' }}>
-                {reviews.length > 0 ? reviews.length : product.reviewCount} reviews
-              </a>
+              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                {product.reviewCount} reviews
+              </span>
             </div>
 
             {/* Price */}
@@ -181,58 +205,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* Reviews */}
-        <section id="reviews" style={{ marginTop: 'var(--sp-16)', scrollMarginTop: '90px' }}>
-          <div style={{ marginBottom: 'var(--sp-8)' }}>
-            <span className="eyebrow">Customer Reviews</span>
-            <h2 style={{ color: 'var(--text-primary)', fontSize: 'clamp(1.4rem,3vw,2rem)', fontWeight: 800, margin: 'var(--sp-2) 0' }}>
-              What our customers say
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-4)' }}>
-              <span style={{ fontSize: '3rem', fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
-                {avgRating.toFixed(1)}
-              </span>
-              <div>
-                <StarRating rating={avgRating} size="1.2rem" />
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                  {reviews.length > 0 ? reviews.length : product.reviewCount} verified reviews
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {reviews.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 'var(--sp-5)' }}>
-              {reviews.map((review) => (
-                <article key={review.id} className="testimonial-card">
-                  <div className="testimonial-stars">{'★'.repeat(review.rating)}</div>
-                  <p style={{ fontWeight: 700, color: 'var(--text-primary)', margin: 'var(--sp-2) 0' }}>{review.title}</p>
-                  <p className="testimonial-text">&ldquo;{review.body}&rdquo;</p>
-                  <div className="testimonial-author" style={{ marginTop: 'var(--sp-4)' }}>
-                    <div className="testimonial-avatar">{review.author.charAt(0)}</div>
-                    <div>
-                      <div className="testimonial-name">{review.author}</div>
-                      <div className="testimonial-city">{review.city} · {formatDate(review.date)}</div>
-                    </div>
-                    {review.verified && <span className="badge badge-green" style={{ marginLeft: 'auto', fontSize: '0.65rem' }}>✓ Verified</span>}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="card" style={{ textAlign: 'center', padding: 'var(--sp-10)' }}>
-              <p style={{ fontSize: '2rem' }}>⭐</p>
-              <p style={{ color: 'var(--text-muted)' }}>Be the first to review this piece!</p>
-            </div>
-          )}
-        </section>
-
         {/* Related */}
         {related.length > 0 && (
           <section style={{ marginTop: 'var(--sp-16)' }}>
             <div className="section-header">
               <span className="eyebrow">You may also love</span>
-              <h2>Related {CATEGORY_LABELS[product.category]} <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Pieces</span></h2>
+              <h2>Related {categoryLabel} <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Pieces</span></h2>
             </div>
             <div className="product-grid">
               {related.map((p) => <ProductCard key={p.id} product={p} />)}

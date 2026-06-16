@@ -229,7 +229,7 @@ export default function ProductForm({ initial, onSubmit, busy }: Props) {
           value={extraUrlsText}
           onChange={e => setExtraUrlsText(e.target.value)}
           rows={3}
-          placeholder="/images/resin-1.png&#10;https://stsrilathaartv2dev.blob.core.windows.net/products/abc.jpg"
+          placeholder="https://&lt;storage-account&gt;.blob.core.windows.net/products/abc.jpg"
           style={{ marginTop: 8 }}
         />
       </details>

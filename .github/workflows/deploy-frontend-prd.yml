@@ -16,6 +16,7 @@ env:
   NODE_VERSION: '22'
   WORKING_DIRECTORY: frontend
   API_BASE_URL: https://func-srilathaartv2-prd.azurewebsites.net/api
+  ASSET_BASE_URL: https://stsrilathaartv2prd.blob.core.windows.net/products
   SITE_URL: https://www.srilatha.art
   FUNCTION_APP_NAME: func-srilathaartv2-prd
   FUNCTION_APP_RG: rg-srilathaartv2-prd
@@ -81,6 +82,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIRECTORY }}
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_ASSET_BASE_URL: ${{ env.ASSET_BASE_URL }}
           NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
           NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ env.RAZORPAY_KEY_ID }}
           NODE_ENV: production
@@ -99,4 +101,5 @@ jobs:
           production_branch: main
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_ASSET_BASE_URL: ${{ env.ASSET_BASE_URL }}
           NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}

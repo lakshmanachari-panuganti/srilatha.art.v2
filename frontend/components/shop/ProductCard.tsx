@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Product, formatPrice } from '@/lib/data';
 import { useCart } from '@/components/cart/CartProvider';
+import { PLACEHOLDER_PRODUCT_IMG } from '@/lib/assets';
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -58,7 +59,7 @@ export default function ProductCard({ product, showQuickAdd = true }: ProductCar
       <div className="product-card-img">
         <Link href={`/product/${product.slug}`} tabIndex={-1} aria-hidden="true">
           <Image
-            src={product.images[0] || '/images/resin-art-hero.png'}
+            src={product.images[0] || PLACEHOLDER_PRODUCT_IMG}
             alt={product.name}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"

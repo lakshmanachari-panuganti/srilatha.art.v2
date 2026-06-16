@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/cart/CartProvider';
 import { formatPrice } from '@/lib/data';
 import { createOrder, validateCoupon, verifyPayment, ApiError } from '@/lib/api';
+import { PLACEHOLDER_PRODUCT_IMG } from '@/lib/assets';
 
 const INDIAN_STATES = [
   'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
@@ -374,7 +375,7 @@ export default function CheckoutPage() {
                 {items.map(item => (
                   <div key={`${item.product.id}-${item.variant}`} style={{ display: 'flex', gap: 'var(--sp-3)', alignItems: 'center' }}>
                     <div style={{ width: 52, height: 52, borderRadius: 'var(--r-md)', overflow: 'hidden', flexShrink: 0, background: 'var(--bg-elevated)', position: 'relative' }}>
-                      <Image src={item.product.images[0] || '/images/resin-art-hero.png'} alt={item.product.name} fill sizes="52px" style={{ objectFit: 'cover' }} />
+                      <Image src={item.product.images[0] || PLACEHOLDER_PRODUCT_IMG} alt={item.product.name} fill sizes="52px" style={{ objectFit: 'cover' }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

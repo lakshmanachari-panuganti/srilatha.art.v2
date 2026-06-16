@@ -1,7 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { PRODUCTS, formatPrice } from '@/lib/data';
+import { useEffect, useState } from 'react';
+import type { Product } from '@/lib/data';
+import { listProducts } from '@/lib/api';
 import ProductCard from '@/components/shop/ProductCard';
 import SortSelect from './SortSelect';
 import { waLink } from '@/lib/contact';
@@ -12,22 +14,43 @@ export default function ShopClient() {
   const category = searchParams.get('category') || 'all';
   const sort = searchParams.get('sort') || 'featured';
 
-  // Filter products
-  let products = category && category !== 'all'
-    ? PRODUCTS.filter(p =>
-        p.category.toLowerCase().includes(category.toLowerCase())
-      )
-    : PRODUCTS;
+  const [allProducts, setAllProducts] = useState<Product[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Sort
-  switch (sort) {
-    case 'price-asc':  products = [...products].sort((a, b) => a.price - b.price); break;
-    case 'price-desc': products = [...products].sort((a, b) => b.price - a.price); break;
-    case 'newest':     products = [...products].filter(p => p.isNewArrival).concat([...products].filter(p => !p.isNewArrival)); break;
-    case 'rating':     products = [...products].sort((a, b) => b.rating - a.rating); break;
-  }
+  useEffect(() => {
+    let cancelled = false;
+    setAllProducts(null);
+    setError(null);
+    listProducts({ limit: 100 })
+      .then(r => { if (!cancelled) setAllProducts(r.products); })
+      .catch(e => { if (!cancelled) setError(e?.message ?? 'Failed to load artworks'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const products = (() => {
+    if (!allProducts) return [];
+    let p = category === 'all'
+      ? [...allProducts]
+      : allProducts.filter(prod => String(prod.category).toLowerCase() === category.toLowerCase());
+
+    switch (sort) {
+      case 'price-asc':  p.sort((a, b) => a.price - b.price); break;
+      case 'price-desc': p.sort((a, b) => b.price - a.price); break;
+      case 'newest':     p = p.filter(x => x.isNewArrival).concat(p.filter(x => !x.isNewArrival)); break;
+      case 'rating':     p.sort((a, b) => b.rating - a.rating); break;
+    }
+    return p;
+  })();
 
   const activeCategory = category;
+  const counts: Record<string, number> = {};
+  if (allProducts) {
+    for (const p of allProducts) {
+      const c = String(p.category).toLowerCase();
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
+    counts.all = allProducts.length;
+  }
 
   return (
     <>
@@ -66,9 +89,7 @@ export default function ShopClient() {
       <div className="category-pills" role="navigation" aria-label="Filter by category">
         {CATEGORY_META.map(cat => {
           const Icon = cat.Icon;
-          const count = cat.id === 'all'
-            ? PRODUCTS.length
-            : PRODUCTS.filter(p => p.category.toLowerCase().includes(cat.id)).length;
+          const count = counts[cat.id] ?? 0;
           return (
             <Link
               key={cat.id}
@@ -88,26 +109,54 @@ export default function ShopClient() {
       {/* Filter bar */}
       <div className="filter-bar">
         <span className="filter-result-count">
-          {products.length} {products.length === 1 ? 'artwork' : 'artworks'} found
+          {allProducts === null
+            ? 'Loading…'
+            : `${products.length} ${products.length === 1 ? 'artwork' : 'artworks'} found`}
         </span>
         <SortSelect currentSort={sort} />
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="card" style={{ padding: 'var(--sp-6)', borderColor: 'var(--accent-red, #EF4444)', marginBottom: 'var(--sp-6)' }}>
+          <p style={{ color: '#EF4444', fontSize: '0.9rem', margin: 0 }}>
+            Couldn’t load artworks: {error}
+          </p>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {allProducts === null && !error && (
+        <div className="product-grid">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="card" style={{ aspectRatio: '1', background: 'var(--bg-elevated)' }} />
+          ))}
+        </div>
+      )}
+
       {/* Product Grid */}
-      {products.length > 0 ? (
+      {allProducts !== null && products.length > 0 && (
         <div className="product-grid">
           {products.map(p => <ProductCard key={p.id} product={p} />)}
         </div>
-      ) : (
+      )}
+
+      {/* Empty state */}
+      {allProducts !== null && products.length === 0 && !error && (
         <div style={{ textAlign: 'center', padding: 'var(--sp-16)', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: '3rem', marginBottom: 'var(--sp-4)' }}>🎨</div>
           <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 'var(--sp-2)' }}>
-            No artworks found
+            {allProducts.length === 0 ? 'New pieces coming soon' : 'No artworks in this category'}
           </h2>
           <p style={{ marginBottom: 'var(--sp-6)', fontSize: '0.85rem' }}>
-            Try a different category or browse all artworks.
+            {allProducts.length === 0
+              ? 'Srilatha is preparing the next collection — check back shortly, or commission a custom piece.'
+              : 'Try a different category or browse all artworks.'}
           </p>
-          <Link href="/shop" className="btn btn-primary">Browse All →</Link>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link href="/shop" className="btn btn-primary">Browse All →</Link>
+            <Link href="/custom-order" className="btn btn-secondary">Request Custom Order</Link>
+          </div>
         </div>
       )}
 

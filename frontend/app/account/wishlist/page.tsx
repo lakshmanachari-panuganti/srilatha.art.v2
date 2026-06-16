@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AccountShell from '@/components/auth/AccountShell';
-import { PRODUCTS, Product } from '@/lib/data';
+import type { Product } from '@/lib/data';
+import { listProducts } from '@/lib/api';
 import ProductCard from '@/components/shop/ProductCard';
 
 export default function WishlistPage() {
@@ -10,14 +11,27 @@ export default function WishlistPage() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    let ids: string[] = [];
     try {
-      const ids: string[] = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
-      setProducts(PRODUCTS.filter(p => ids.includes(p.id)));
-    } catch {
+      ids = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
+    } catch { ids = []; }
+
+    if (ids.length === 0) {
       setProducts([]);
-    } finally {
       setHydrated(true);
+      return;
     }
+
+    listProducts({ limit: 100 })
+      .then(r => {
+        if (cancelled) return;
+        setProducts(r.products.filter(p => ids.includes(p.id)));
+      })
+      .catch(() => { if (!cancelled) setProducts([]); })
+      .finally(() => { if (!cancelled) setHydrated(true); });
+
+    return () => { cancelled = true; };
   }, []);
 
   return (

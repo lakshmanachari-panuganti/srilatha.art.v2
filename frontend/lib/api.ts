@@ -45,7 +45,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface AuthResponse {
   token: string;
   expiresIn: number;
-  user: { email: string; name: string; picture?: string };
+  user: { email: string; name: string; picture?: string; mobile?: string };
 }
 
 export function authRegister(input: { name: string; email: string; password: string; mobile?: string }) {
@@ -55,8 +55,40 @@ export function authRegister(input: { name: string; email: string; password: str
   });
 }
 
-export function authLogin(input: { email: string; password: string }) {
+export function authLogin(input: { email?: string; phone?: string; identifier?: string; password: string }) {
   return request<AuthResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function authGoogle(input: {
+  accessToken?: string;
+  profile?: { sub?: string; email?: string; name?: string; picture?: string };
+  mobile?: string;
+}) {
+  return request<AuthResponse & { created: boolean; merged: boolean }>('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function forgotPasswordRequest(input: { phone: string }) {
+  return request<{ ok: true; validityMinutes: number; devOtp?: string }>(
+    '/auth/forgot-password/request',
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+export function forgotPasswordVerify(input: { phone: string; otp: string }) {
+  return request<{ ok: true; resetToken: string; expiresIn: number }>(
+    '/auth/forgot-password/verify',
+    { method: 'POST', body: JSON.stringify(input) },
+  );
+}
+
+export function forgotPasswordReset(input: { resetToken: string; newPassword: string }) {
+  return request<AuthResponse & { ok: true }>('/auth/forgot-password/reset', {
     method: 'POST',
     body: JSON.stringify(input),
   });

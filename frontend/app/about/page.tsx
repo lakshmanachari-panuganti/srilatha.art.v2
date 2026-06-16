@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import PageHeader from '@/components/ui/PageHeader';
 import Prose from '@/components/ui/Prose';
+import { seedImg } from '@/lib/assets';
 
 export const metadata: Metadata = {
   title: 'About Srilatha',
@@ -22,7 +23,7 @@ export default function AboutPage() {
         <PageHeader eyebrow="Our Story" title={<>Made by Hand, <em style={{ fontStyle: 'normal', background: 'var(--gradient-warm)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>by Srilatha</em></>} description="A small, slow studio making heirloom resin art and Indian folk art — one piece at a time." currentLabel="About" />
 
         <div style={{ position: 'relative', aspectRatio: '16/8', borderRadius: 'var(--r-2xl)', overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 'var(--sp-12)' }}>
-          <Image src="/images/resin-art-hero.png" alt="Srilatha Art studio" fill style={{ objectFit: 'cover' }} />
+          <Image src={seedImg('resin-art-hero.png')} alt="Srilatha Art studio" fill style={{ objectFit: 'cover' }} />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, var(--bg-base) 0%, transparent 60%)' }} />
         </div>
 

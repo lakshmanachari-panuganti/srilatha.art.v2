@@ -22,6 +22,7 @@ env:
   NODE_VERSION: '22'
   WORKING_DIRECTORY: frontend
   API_BASE_URL: https://func-srilathaartv2-dev.azurewebsites.net/api
+  ASSET_BASE_URL: https://stsrilathaartv2dev.blob.core.windows.net/products
   SITE_URL: https://www.lucky1.online
   FUNCTION_APP_NAME: func-srilathaartv2-dev
   FUNCTION_APP_RG: rg-srilathaartv2-dev
@@ -85,6 +86,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIRECTORY }}
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_ASSET_BASE_URL: ${{ env.ASSET_BASE_URL }}
           NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
           NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ env.RAZORPAY_KEY_ID }}
           NODE_ENV: production
@@ -103,6 +105,7 @@ jobs:
           skip_api_build: true
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_ASSET_BASE_URL: ${{ env.ASSET_BASE_URL }}
           NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
 
   close-preview:
