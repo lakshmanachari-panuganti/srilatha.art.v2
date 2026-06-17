@@ -146,8 +146,17 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
       setLoading(true);
       const res = await forgotPasswordRequest({ phone: fPhone.trim() });
       setFValidity(res.validityMinutes);
-      if (res.devOtp) setFOtp(res.devOtp);   // dev-only convenience
-      setInfo(`We've sent a 6-digit OTP via WhatsApp. It's valid for ${res.validityMinutes} minutes.`);
+      if (res.devOtp) setFOtp(res.devOtp);   // operator-enabled fallback
+      // Only claim WhatsApp delivery when the backend actually confirmed it.
+      // If devOtp is present, the operator turned on the fallback and the
+      // code has been pre-filled — say so honestly.
+      if (res.sent) {
+        setInfo(`We've sent a 6-digit OTP via WhatsApp. It's valid for ${res.validityMinutes} minutes.`);
+      } else if (res.devOtp) {
+        setInfo(`The OTP has been pre-filled for you. It's valid for ${res.validityMinutes} minutes.`);
+      } else {
+        setInfo(`A 6-digit OTP has been generated and is valid for ${res.validityMinutes} minutes.`);
+      }
       setFStep('otp');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not start password reset. Please try again.');

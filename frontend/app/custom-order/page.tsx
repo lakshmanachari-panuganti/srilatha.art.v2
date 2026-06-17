@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { waLink } from "@/lib/contact";
 import { seedImg } from "@/lib/assets";
+import { submitCustomOrder, ApiError } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FormData {
@@ -99,6 +100,8 @@ export default function CustomOrderPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string>('');
+  const [submittedId, setSubmittedId] = useState<string>('');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // ── Validation ──────────────────────────────────────────────────────────────
@@ -134,9 +137,30 @@ export default function CustomOrderPage() {
     e.preventDefault();
     if (!validate()) return;
     setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 1400));
-    setIsSubmitting(false);
-    setSubmitted(true);
+    setSubmitError('');
+    try {
+      const res = await submitCustomOrder({
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        description: form.description.trim(),
+        budget: form.budget || undefined,
+        category: form.artType || undefined,
+        referenceImageUrl: form.referenceUrl.trim() || undefined,
+      });
+      setSubmittedId(res.id);
+      setSubmitted(true);
+    } catch (err) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof TypeError
+            ? 'Network error — please check your connection and try again.'
+            : 'Could not submit your request. Please try again, or message Srilatha on WhatsApp.';
+      setSubmitError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   // ── Field helpers ────────────────────────────────────────────────────────────
@@ -169,9 +193,15 @@ export default function CustomOrderPage() {
               and get back to you within <strong>24 hours</strong> via WhatsApp or email.
             </p>
             <div className="co-success-details">
+              {submittedId && (
+                <div className="co-success-detail">
+                  <span>🧾</span>
+                  <span>Reference: <strong style={{ fontFamily: 'monospace' }}>{submittedId}</strong></span>
+                </div>
+              )}
               <div className="co-success-detail">
-                <span>📧</span>
-                <span>Confirmation sent to <strong>{form.email}</strong></span>
+                <span>📞</span>
+                <span>We&apos;ll contact you at <strong>{form.phone}</strong></span>
               </div>
               <div className="co-success-detail">
                 <span>⏱️</span>
@@ -480,6 +510,23 @@ export default function CustomOrderPage() {
                   </label>
                   {errors.agreeTerms && <span className="co-error">{errors.agreeTerms}</span>}
                 </div>
+
+                {/* Submit error */}
+                {submitError && (
+                  <div
+                    role="alert"
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(220,38,38,0.08)',
+                      border: '1px solid rgba(220,38,38,0.25)',
+                      color: '#b91c1c',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {submitError}
+                  </div>
+                )}
 
                 {/* Submit */}
                 <button

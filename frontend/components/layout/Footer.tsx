@@ -42,31 +42,21 @@ export default function Footer() {
               ))}
             </div>
 
-            {/* Newsletter mini */}
+            {/* Newsletter — not yet wired to a backend. Until it is, link to
+                WhatsApp instead of pretending to collect emails. */}
             <div style={{ marginTop: 'var(--sp-5)' }}>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: 'var(--sp-2)', fontWeight: 600 }}>Get 10% off your first order:</p>
-              <form
-                style={{ display: 'flex', gap: 'var(--sp-2)' }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert('Thanks for subscribing! Check your email for your discount code.');
-                }}
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: 'var(--sp-2)', fontWeight: 600 }}>
+                Want first dibs on new pieces?
+              </p>
+              <a
+                href={waLink('Hi! Please add me to your updates list — I\'d love to hear about new pieces and offers.')}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-whatsapp btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)' }}
               >
-                <input
-                  type="email"
-                  placeholder="your@email.com"
-                  required
-                  style={{
-                    flex: 1, padding: '8px 12px',
-                    border: '1.5px solid var(--border-mid)', borderRadius: 'var(--r-full)',
-                    background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-                    fontSize: '0.82rem', outline: 'none', minWidth: 0,
-                  }}
-                />
-                <button type="submit" className="btn btn-primary btn-sm">
-                  Subscribe
-                </button>
-              </form>
+                Message on WhatsApp
+              </a>
             </div>
           </div>
 

@@ -118,10 +118,12 @@ export function authGoogle(input: {
 }
 
 export function forgotPasswordRequest(input: { phone: string }) {
-  return request<{ ok: true; validityMinutes: number; devOtp?: string }>(
-    '/auth/forgot-password/request',
-    { method: 'POST', body: JSON.stringify(input) },
-  );
+  return request<{
+    ok: true;
+    validityMinutes: number;
+    sent: boolean;       // true iff WhatsApp Graph confirmed delivery
+    devOtp?: string;     // only present when operator opted in to expose the code
+  }>('/auth/forgot-password/request', { method: 'POST', body: JSON.stringify(input) });
 }
 
 export function forgotPasswordVerify(input: { phone: string; otp: string }) {
@@ -133,6 +135,25 @@ export function forgotPasswordVerify(input: { phone: string; otp: string }) {
 
 export function forgotPasswordReset(input: { resetToken: string; newPassword: string }) {
   return request<AuthResponse & { ok: true }>('/auth/forgot-password/reset', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+// ─── Custom orders ───────────────────────────────────────────────────────────
+
+export interface SubmitCustomOrderInput {
+  name: string;
+  phone: string;
+  email: string;
+  description: string;
+  budget?: string;
+  category?: string;
+  referenceImageUrl?: string;
+}
+
+export function submitCustomOrder(input: SubmitCustomOrderInput) {
+  return request<{ success: true; id: string; message: string }>('/custom-orders', {
     method: 'POST',
     body: JSON.stringify(input),
   });

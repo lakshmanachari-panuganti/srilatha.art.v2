@@ -45,8 +45,8 @@ function OrderSuccessInner() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', textAlign: 'left', marginBottom: 'var(--sp-8)' }}>
             {[
-              ['📧', `Confirmation sent to your email`],
-              ['📞', `WhatsApp updates from ${CONTACT.phoneDisplay}`],
+              ['🧾', `Keep this Order ID safe — you'll need it to track your order`],
+              ['📞', `Updates will come via WhatsApp from ${CONTACT.phoneDisplay}`],
               ['📦', `Dispatch within 3 business days`],
               ['🚚', `Delivery in 5–7 business days, pan-India`],
             ].map(([icon, text]) => (
