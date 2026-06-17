@@ -145,6 +145,8 @@ jobs:
           probe "$API_URL/config/public" "api" || true
 
       # ── Run the validation suite ────────────────────────────────────────
+      # Test customer credentials are only injected on DEV. On PRD the env
+      # vars stay empty and the runner skips the signed-in + Razorpay legs.
       - name: Run validation suite
         id: run
         working-directory: tests/post-deploy
@@ -153,6 +155,8 @@ jobs:
           SITE_URL: ${{ steps.target.outputs.site_url }}
           API_URL: ${{ steps.target.outputs.api_url }}
           TARGET_ENV: ${{ steps.target.outputs.env }}
+          TEST_CUSTOMER_EMAIL: ${{ steps.target.outputs.env == 'dev' && secrets.POST_DEPLOY_TEST_CUSTOMER_EMAIL_DEV || '' }}
+          TEST_CUSTOMER_PASSWORD: ${{ steps.target.outputs.env == 'dev' && secrets.POST_DEPLOY_TEST_CUSTOMER_PASSWORD_DEV || '' }}
         run: |
           mkdir -p artifacts/screenshots
           node run-validation.mjs

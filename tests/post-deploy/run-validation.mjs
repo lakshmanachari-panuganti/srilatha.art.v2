@@ -22,6 +22,23 @@ const SITE_URL = (process.env.SITE_URL || '').replace(/\/+$/, '');
 const API_URL = (process.env.API_URL || '').replace(/\/+$/, '');
 const TARGET_ENV = process.env.TARGET_ENV || 'dev';
 
+// Optional credentials. Only the DEV-only signed-in + checkout journeys read
+// these; the lightweight journeys (cart, form-validation, copy assertions)
+// run with or without them. Anything sensitive is never persisted into the
+// results.json that gets uploaded as an artifact.
+const TEST_CUSTOMER_EMAIL = process.env.TEST_CUSTOMER_EMAIL || '';
+const TEST_CUSTOMER_PASSWORD = process.env.TEST_CUSTOMER_PASSWORD || '';
+
+// Razorpay test card (provided by the operator, sandbox-only). Hard-coded
+// here so the workflow doesn't need yet another secret; these are the
+// publicly-documented Razorpay TEST values and never reach production.
+const RAZORPAY_TEST_CARD = {
+  number: '5104 0600 0000 0008',
+  expiry: '12/30',
+  cvv: '123',
+  name: 'Srilatha Test Buyer',
+};
+
 if (!SITE_URL || !API_URL) {
   console.error('SITE_URL and API_URL must both be set.');
   process.exit(2);
@@ -338,6 +355,503 @@ async function runCriticalJourneys(browser) {
     details: j2Details,
   });
 
+  // ── Lightweight journey: Cart flow (localStorage only) ─────────────────
+  // Goes /shop → quick-add the first product → opens /cart → asserts the cart
+  // is no longer empty. Mutates only client-side localStorage; never touches
+  // the orders API.
+  await runCartFlowJourney(page);
+
+  // ── Lightweight journey: Empty-submit form validation ──────────────────
+  // Opens the auth modal, submits the Sign in form with empty fields, asserts
+  // the inline error renders. Verifies client-side validation didn't break.
+  await runFormValidationJourney(page);
+
+  // ── Lightweight journey: Key copy assertions ───────────────────────────
+  // Reads visible text on key pages; flags blank/missing copy from a deploy
+  // that accidentally truncated translations or marketing strings.
+  await runKeyCopyJourney(page);
+
+  await context.close();
+}
+
+// ─── Lightweight journeys (no credentials needed) ───────────────────────────
+
+async function runCartFlowJourney(page) {
+  const startedAt = Date.now();
+  let status = 'pass';
+  const details = { url: `${SITE_URL}/shop`, steps: [] };
+
+  try {
+    await page.goto(`${SITE_URL}/shop`, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS });
+    details.steps.push('navigated to /shop');
+
+    // Clear any previously-added cart state so the assertion below is
+    // unambiguous. The cart provider keys off `srilatha_cart` in localStorage.
+    await page.evaluate(() => {
+      try { localStorage.removeItem('srilatha_cart'); } catch { /* ignore */ }
+    });
+    details.steps.push('cleared srilatha_cart from localStorage');
+
+    const quickAdd = page.locator('.product-card-quick-add').first();
+    const quickAddCount = await quickAdd.count();
+    details.steps.push(`quick-add buttons present: ${quickAddCount > 0}`);
+
+    if (quickAddCount === 0) {
+      status = 'warn';
+      details.note = 'no in-stock product cards to add — catalog may be empty';
+    } else {
+      // Click triggers cart provider + opens the cart drawer; either way the
+      // localStorage state is what we assert against.
+      await quickAdd.click({ timeout: 5000 });
+      details.steps.push('clicked quick-add');
+      await page.waitForTimeout(500);
+
+      const cartContents = await page.evaluate(() => {
+        try { return localStorage.getItem('srilatha_cart'); } catch { return null; }
+      });
+      const parsed = cartContents ? JSON.parse(cartContents) : null;
+      const itemCount = Array.isArray(parsed) ? parsed.length : Array.isArray(parsed?.items) ? parsed.items.length : 0;
+      details.steps.push(`localStorage cart entries after add: ${itemCount}`);
+      details.cartLocalStorageItems = itemCount;
+      if (itemCount === 0) status = 'fail';
+
+      // Navigate to /cart and confirm the empty-cart copy is NOT shown.
+      await page.goto(`${SITE_URL}/cart`, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS });
+      details.steps.push('navigated to /cart');
+      const emptyVisible = await page.locator('text=Cart is empty').count();
+      details.cartShowsEmptyMessage = emptyVisible > 0;
+      details.steps.push(`"Cart is empty" copy visible: ${emptyVisible > 0}`);
+      if (emptyVisible > 0) status = 'fail';
+    }
+  } catch (e) {
+    status = 'fail';
+    details.error = String(e?.message ?? e);
+  } finally {
+    // Restore a clean cart so later journeys aren't polluted.
+    try {
+      await page.evaluate(() => { try { localStorage.removeItem('srilatha_cart'); } catch { /* ignore */ } });
+    } catch { /* ignore */ }
+  }
+
+  record({
+    category: 'E2E journeys',
+    name: 'Cart flow (add product → /cart)',
+    status,
+    durationMs: Date.now() - startedAt,
+    details,
+  });
+}
+
+async function runFormValidationJourney(page) {
+  const startedAt = Date.now();
+  let status = 'pass';
+  const details = { url: SITE_URL, steps: [] };
+
+  try {
+    await page.goto(`${SITE_URL}/`, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS });
+    details.steps.push('navigated to /');
+
+    const accountBtn = page.locator('#header-account-btn');
+    if (await accountBtn.count() === 0) {
+      details.note = 'account button hidden on this viewport — skipping';
+      details.steps.push('skip: header account button hidden');
+    } else {
+      await accountBtn.first().click({ timeout: 5000 });
+      details.steps.push('opened auth modal');
+      await page.waitForSelector('.auth-card', { state: 'visible', timeout: 5000 });
+
+      // Click submit with empty identifier + password.
+      const submitBtn = page.getByTestId('login-submit');
+      const submitCount = await submitBtn.count();
+      details.steps.push(`login-submit button present: ${submitCount > 0}`);
+      if (submitCount === 0) {
+        status = 'fail';
+        details.note = 'login-submit data-testid missing from auth modal';
+      } else {
+        await submitBtn.click({ timeout: 5000 });
+        await page.waitForTimeout(400);
+        const errorVisible = await page.getByTestId('auth-error').count();
+        details.steps.push(`auth-error visible after empty submit: ${errorVisible > 0}`);
+        details.emptySubmitShowsError = errorVisible > 0;
+        if (errorVisible === 0) {
+          status = 'fail';
+          details.note = 'empty form submit did NOT show validation error';
+        }
+      }
+
+      // Close the modal so we leave a clean state.
+      const close = page.locator('.auth-close').first();
+      if (await close.count()) await close.click({ timeout: 5000 });
+    }
+  } catch (e) {
+    status = 'fail';
+    details.error = String(e?.message ?? e);
+  }
+
+  record({
+    category: 'E2E journeys',
+    name: 'Form validation (empty Sign in submit shows error)',
+    status,
+    durationMs: Date.now() - startedAt,
+    details,
+  });
+}
+
+async function runKeyCopyJourney(page) {
+  const startedAt = Date.now();
+  const details = { url: SITE_URL, checks: [] };
+
+  // Each entry is a copy fragment we expect to find on the named page. If a
+  // fragment goes missing — say the announcement bar got blanked out by a
+  // misconfigured env var — this surfaces it before customers do.
+  const COPY_CHECKS = [
+    { page: '/',         match: /Heirloom Resin Art/i,          purpose: 'hero headline' },
+    { page: '/',         match: /Made.*One.*Piece.*at.*a.*Time/i, purpose: 'hero subhead' },
+    { page: '/shop',     match: /Shop|Artworks/i,                purpose: 'shop landing copy' },
+    { page: '/contact',  match: /WhatsApp/i,                     purpose: 'contact tile' },
+    { page: '/faq',      match: /Returns|Shipping|Care/i,        purpose: 'FAQ section heading' },
+  ];
+
+  let anyFail = false;
+
+  for (const c of COPY_CHECKS) {
+    let found = false;
+    let error = null;
+    try {
+      await page.goto(`${SITE_URL}${c.page}`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+      // Search across body innerText.
+      const text = await page.locator('body').innerText({ timeout: 5000 });
+      found = c.match.test(text);
+    } catch (e) {
+      error = String(e?.message ?? e);
+    }
+    details.checks.push({
+      page: c.page,
+      purpose: c.purpose,
+      pattern: c.match.toString(),
+      found,
+      error,
+    });
+    if (!found) anyFail = true;
+  }
+
+  record({
+    category: 'E2E journeys',
+    name: 'Key copy present on landing pages',
+    status: anyFail ? 'warn' : 'pass', // copy drift is a warning, not a hard fail
+    durationMs: Date.now() - startedAt,
+    details,
+  });
+}
+
+// ─── DEV-only authenticated journeys (require test credentials) ─────────────
+
+async function runSignedInJourney(browser) {
+  if (TARGET_ENV !== 'dev') {
+    console.log('  skip: signed-in journey runs only on DEV');
+    return;
+  }
+  if (!TEST_CUSTOMER_EMAIL || !TEST_CUSTOMER_PASSWORD) {
+    console.log('  skip: TEST_CUSTOMER_EMAIL / TEST_CUSTOMER_PASSWORD not set');
+    return;
+  }
+
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+  });
+  const page = await context.newPage();
+
+  const startedAt = Date.now();
+  let status = 'pass';
+  const details = { url: SITE_URL, steps: [] };
+
+  try {
+    await page.goto(`${SITE_URL}/`, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS });
+    details.steps.push('navigated to /');
+
+    await page.locator('#header-account-btn').first().click({ timeout: 5000 });
+    await page.waitForSelector('.auth-card', { state: 'visible', timeout: 5000 });
+    details.steps.push('opened auth modal');
+
+    await page.getByTestId('login-identifier').fill(TEST_CUSTOMER_EMAIL);
+    await page.getByTestId('login-password').fill(TEST_CUSTOMER_PASSWORD);
+    details.steps.push('filled credentials');
+
+    // Wait for the /auth/login POST response so we can read the status code.
+    const responsePromise = page.waitForResponse(
+      (resp) => resp.url().includes('/api/auth/login') && resp.request().method() === 'POST',
+      { timeout: 15_000 },
+    );
+    await page.getByTestId('login-submit').click({ timeout: 5000 });
+    const response = await responsePromise.catch(() => null);
+    const loginStatus = response?.status() ?? 0;
+    details.loginHttpStatus = loginStatus;
+    details.steps.push(`POST /api/auth/login → ${loginStatus}`);
+
+    // Modal should close on success.
+    await page.waitForSelector('.auth-card', { state: 'hidden', timeout: 5000 }).catch(() => {});
+    const modalStillOpen = await page.locator('.auth-card').count();
+    details.modalClosed = modalStillOpen === 0;
+    details.steps.push(`auth modal closed: ${modalStillOpen === 0}`);
+
+    // Account button should now be a user avatar / show the menu on click.
+    await page.locator('#header-account-btn').first().click({ timeout: 5000 });
+    await page.waitForTimeout(400);
+    const logoutVisible = await page.getByRole('button', { name: /log out/i }).count();
+    details.menuShowsLogout = logoutVisible > 0;
+    details.steps.push(`user menu shows Log Out: ${logoutVisible > 0}`);
+
+    if (loginStatus !== 200 || modalStillOpen !== 0 || logoutVisible === 0) {
+      status = 'fail';
+    }
+
+    // Log out so the next journey starts clean.
+    if (logoutVisible > 0) {
+      await page.getByRole('button', { name: /log out/i }).first().click({ timeout: 5000 });
+      details.steps.push('clicked Log Out');
+    }
+  } catch (e) {
+    status = 'fail';
+    details.error = String(e?.message ?? e);
+  }
+
+  record({
+    category: 'Authenticated journeys',
+    name: 'Sign in with DEV test customer + sign out',
+    status,
+    durationMs: Date.now() - startedAt,
+    details,
+  });
+
+  await context.close();
+}
+
+// ─── DEV-only Razorpay sandbox checkout ─────────────────────────────────────
+
+async function runCheckoutJourney(browser) {
+  if (TARGET_ENV !== 'dev') {
+    console.log('  skip: Razorpay checkout journey runs only on DEV');
+    return;
+  }
+
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: 1,
+  });
+  const page = await context.newPage();
+
+  const startedAt = Date.now();
+  let status = 'pass';
+  const details = { url: SITE_URL, steps: [], razorpay: {} };
+
+  // Network capture for the order creation request — that's the
+  // backend-integration signal we care most about.
+  let createOrderStatus = null;
+  let createOrderId = null;
+  page.on('response', async (res) => {
+    if (res.url().includes('/api/orders') && res.request().method() === 'POST') {
+      createOrderStatus = res.status();
+      try {
+        const body = await res.json();
+        createOrderId = body?.orderId ?? null;
+      } catch { /* ignore */ }
+    }
+  });
+
+  try {
+    // 1. Reach /shop, add a product to cart.
+    await page.goto(`${SITE_URL}/shop`, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS });
+    details.steps.push('navigated to /shop');
+
+    await page.evaluate(() => {
+      try { localStorage.removeItem('srilatha_cart'); } catch { /* ignore */ }
+    });
+
+    const quickAdd = page.locator('.product-card-quick-add').first();
+    if (await quickAdd.count() === 0) {
+      details.note = 'no in-stock products to checkout';
+      record({
+        category: 'Authenticated journeys',
+        name: 'Razorpay sandbox checkout (DEV)',
+        status: 'warn',
+        durationMs: Date.now() - startedAt,
+        details,
+      });
+      await context.close();
+      return;
+    }
+    await quickAdd.click({ timeout: 5000 });
+    details.steps.push('added first product to cart');
+    await page.waitForTimeout(400);
+
+    // 2. Go to /checkout.
+    await page.goto(`${SITE_URL}/checkout`, { waitUntil: 'networkidle', timeout: NAV_TIMEOUT_MS });
+    details.steps.push('navigated to /checkout');
+
+    // 3. Step 1 — fill the address form. The inputs have no testids, so we
+    // anchor on the placeholder text emitted by the page component.
+    await page.getByPlaceholder('As on shipping label').fill('Srilatha Test Buyer');
+    await page.getByPlaceholder('For order confirmation').fill(TEST_CUSTOMER_EMAIL || 'test@srilatha.art');
+    await page.getByPlaceholder('+91 9XXXXXXXXX').fill('+91 9876500000');
+    await page.getByPlaceholder('Flat / House no, Street, Area').fill('Plot 12, Test Lane');
+    await page.getByPlaceholder('e.g. Mumbai').fill('Hyderabad');
+    await page.locator('select').first().selectOption({ label: 'Telangana' }).catch(async () => {
+      await page.locator('select').first().selectOption({ index: 1 });
+    });
+    await page.getByPlaceholder('6 digits').fill('500039');
+    details.steps.push('filled delivery form');
+
+    await page.getByRole('button', { name: /Review Order/ }).click({ timeout: 5000 });
+    await page.waitForTimeout(500);
+    details.steps.push('advanced to step 2 (Review)');
+
+    // 4. Step 2 → step 3.
+    await page.getByRole('button', { name: /Pay .* securely/ }).click({ timeout: 5000 });
+    await page.waitForTimeout(500);
+    details.steps.push('advanced to step 3 (Payment)');
+
+    // 5. Click the Pay button — this triggers `createOrder` + opens Razorpay.
+    const payBtn = page.getByRole('button', { name: /Pay .*/i }).filter({ hasNotText: 'securely' }).first();
+    await payBtn.click({ timeout: 10_000 });
+    details.steps.push('clicked Pay (Razorpay)');
+
+    // 6. Wait for the createOrder response so we know our backend stayed alive.
+    // The promise above resolves whenever it fires; give it 30s max.
+    for (let i = 0; i < 30 && createOrderStatus === null; i++) {
+      await page.waitForTimeout(1000);
+    }
+    details.steps.push(`POST /api/orders → ${createOrderStatus ?? 'no response'}`);
+    details.createOrderHttpStatus = createOrderStatus;
+    details.createOrderId = createOrderId;
+
+    // 7. Wait for the Razorpay iframe to render.
+    const razorpayFrameAppeared = await page
+      .waitForSelector('iframe[src*="razorpay.com"]', { state: 'visible', timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
+    details.razorpay.iframeAppeared = razorpayFrameAppeared;
+    details.steps.push(`Razorpay iframe appeared: ${razorpayFrameAppeared}`);
+
+    if (!razorpayFrameAppeared) {
+      // Hard fail — our integration didn't open the gateway.
+      status = 'fail';
+    } else {
+      // 8. Best-effort: fill the Razorpay test card. Razorpay's hosted UI
+      // selectors change without notice and the script itself loads a few
+      // iframes (modal shell + card form). We try to drive the happy path and
+      // record success/failure without crashing the run.
+      try {
+        const frames = page.frames().filter((f) => /razorpay\.com/.test(f.url()));
+        details.razorpay.frameCount = frames.length;
+        // The card-form frame is usually the deepest one with a "Card" tab.
+        // Iterate until we find a frame exposing a card-number-like input.
+        let targetFrame = null;
+        for (const f of frames) {
+          if (await f.locator('input[name="card[number]"], input[name="card.number"]').count().catch(() => 0)) {
+            targetFrame = f;
+            break;
+          }
+        }
+        if (!targetFrame) {
+          // Some Razorpay flows show a method picker first. Click the Card
+          // method tile and re-scan frames.
+          for (const f of frames) {
+            const cardTile = f.locator('[data-method="card"]');
+            if (await cardTile.count().catch(() => 0)) {
+              await cardTile.first().click().catch(() => {});
+              await page.waitForTimeout(800);
+              const refreshed = page.frames().filter((x) => /razorpay\.com/.test(x.url()));
+              for (const r of refreshed) {
+                if (await r.locator('input[name="card[number]"], input[name="card.number"]').count().catch(() => 0)) {
+                  targetFrame = r;
+                  break;
+                }
+              }
+              if (targetFrame) break;
+            }
+          }
+        }
+        details.razorpay.cardFrameFound = !!targetFrame;
+
+        if (targetFrame) {
+          await targetFrame.locator('input[name="card[number]"], input[name="card.number"]').first().fill(RAZORPAY_TEST_CARD.number).catch(() => {});
+          await targetFrame.locator('input[name="card[expiry]"], input[name="card.expiry"]').first().fill(RAZORPAY_TEST_CARD.expiry).catch(() => {});
+          await targetFrame.locator('input[name="card[cvv]"], input[name="card.cvv"]').first().fill(RAZORPAY_TEST_CARD.cvv).catch(() => {});
+          await targetFrame.locator('input[name="card[name]"], input[name="card.name"]').first().fill(RAZORPAY_TEST_CARD.name).catch(() => {});
+          details.steps.push('filled Razorpay test card details');
+
+          await targetFrame.getByRole('button', { name: /Pay/i }).first().click({ timeout: 5000 }).catch(() => {});
+          details.steps.push('submitted Razorpay form');
+
+          // 9. Razorpay may show 3DS/OTP. Try the canonical test OTP "1234"
+          // if a numeric input appears within 15s.
+          const otpInput = await page.waitForSelector('iframe[src*="razorpay.com"] >> nth=0', { timeout: 5_000 }).catch(() => null);
+          if (otpInput) {
+            // The OTP field varies — leave a best-effort attempt at filling.
+            await page.waitForTimeout(2000);
+            for (const f of page.frames().filter((x) => /razorpay\.com/.test(x.url()))) {
+              const otp = f.locator('input[type="tel"], input[type="text"][maxlength="4"], input[name="otp"]');
+              if (await otp.count().catch(() => 0)) {
+                await otp.first().fill('1234').catch(() => {});
+                await f.getByRole('button', { name: /submit|verify|confirm|pay/i }).first().click().catch(() => {});
+                details.steps.push('attempted OTP/3DS submission with test OTP 1234');
+                break;
+              }
+            }
+          }
+
+          // 10. Wait for the order-success page or a hard timeout.
+          const reachedSuccess = await page
+            .waitForURL(/\/order-success/, { timeout: 30_000 })
+            .then(() => true)
+            .catch(() => false);
+          details.razorpay.reachedOrderSuccess = reachedSuccess;
+          details.steps.push(`reached /order-success: ${reachedSuccess}`);
+          if (!reachedSuccess) {
+            status = 'warn';
+            details.note = 'Razorpay sandbox flow did not complete to /order-success — gateway selectors may have changed. The createOrder API still responded ' + (createOrderStatus ?? 'unknown') + '.';
+          }
+        } else {
+          // We got the modal up but couldn't reach the card form.
+          status = 'warn';
+          details.note = 'Razorpay card form selectors not found — UI may have changed; createOrder still succeeded.';
+        }
+      } catch (innerErr) {
+        status = 'warn';
+        details.razorpayError = String(innerErr?.message ?? innerErr);
+        details.steps.push('Razorpay automation error (recorded as warn)');
+      }
+    }
+
+    if (createOrderStatus !== 200 && createOrderStatus !== 201) {
+      // The createOrder call itself is a hard requirement.
+      status = 'fail';
+    }
+
+    // Save a screenshot of whichever state we end on.
+    try {
+      await page.screenshot({ path: join(SCREENSHOT_DIR, 'checkout-end.png'), fullPage: false });
+      details.screenshot = 'checkout-end.png';
+    } catch { /* ignore */ }
+  } catch (e) {
+    status = 'fail';
+    details.error = String(e?.message ?? e);
+  } finally {
+    // Tidy local state.
+    try {
+      await page.evaluate(() => { try { localStorage.removeItem('srilatha_cart'); } catch { /* ignore */ } });
+    } catch { /* ignore */ }
+  }
+
+  record({
+    category: 'Authenticated journeys',
+    name: 'Razorpay sandbox checkout (DEV)',
+    status,
+    durationMs: Date.now() - startedAt,
+    details,
+  });
+
   await context.close();
 }
 
@@ -362,8 +876,14 @@ async function main() {
     console.log('▶ Mobile pages…');
     await runPageSuite(browser, { width: 390, height: 844 }, 'mobile', devices['iPhone 13']);
 
-    console.log('▶ Critical journeys…');
+    console.log('▶ Critical + lightweight journeys…');
     await runCriticalJourneys(browser);
+
+    console.log('▶ Authenticated journey (DEV-only)…');
+    await runSignedInJourney(browser);
+
+    console.log('▶ Razorpay sandbox checkout (DEV-only)…');
+    await runCheckoutJourney(browser);
   } finally {
     await browser.close();
   }
