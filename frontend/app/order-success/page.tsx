@@ -8,6 +8,9 @@ function OrderSuccessInner() {
   const sp = useSearchParams();
   const orderId = sp.get('orderId') ?? '—';
   const paymentId = sp.get('paymentId') ?? '—';
+  const emailSent = sp.get('emailSent') === '1';
+  const emailTo = sp.get('emailTo');
+  const emailError = sp.get('emailError');
 
   return (
     <div className="page-shell">
@@ -44,6 +47,11 @@ function OrderSuccessInner() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', textAlign: 'left', marginBottom: 'var(--sp-8)' }}>
+            {emailSent && emailTo && (
+              <div data-testid="email-sent" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                <span>📧</span><span>Confirmation sent to <strong>{emailTo}</strong></span>
+              </div>
+            )}
             {[
               ['🧾', `Keep this Order ID safe — you'll need it to track your order`],
               ['📞', `Updates will come via WhatsApp from ${CONTACT.phoneDisplay}`],
@@ -55,6 +63,31 @@ function OrderSuccessInner() {
               </div>
             ))}
           </div>
+
+          {!emailSent && (
+            <div
+              role="alert"
+              data-testid="email-failed"
+              style={{
+                marginBottom: 'var(--sp-6)',
+                padding: '12px 16px',
+                borderRadius: 'var(--r-lg)',
+                background: 'rgba(234,179,8,0.10)',
+                border: '1px solid rgba(234,179,8,0.35)',
+                color: '#854d0e',
+                textAlign: 'left',
+                fontSize: '0.85rem',
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>Heads up:</strong> we couldn&rsquo;t send the confirmation email{emailTo ? <> to <strong>{emailTo}</strong></> : null}. Your payment is safe and your order is confirmed (keep the Order ID above). Please reply on WhatsApp to {CONTACT.phoneDisplay} and we&rsquo;ll send the confirmation manually.
+              {emailError ? (
+                <div style={{ marginTop: 6, fontSize: '0.75rem', color: '#92400e' }}>
+                  Reason: <code>{emailError}</code>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 'var(--sp-3)', flexWrap: 'wrap', justifyContent: 'center' }}>
             <Link href="/account/orders" className="btn btn-primary">View My Orders</Link>

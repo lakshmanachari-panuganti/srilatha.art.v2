@@ -142,13 +142,22 @@ export default function CheckoutPage() {
       handler: async (response: RzpResponse) => {
         // 3. Server verifies the HMAC signature before we trust the payment.
         try {
-          await verifyPayment(order.orderId, {
+          const verifyRes = await verifyPayment(order.orderId, {
             razorpayOrderId: response.razorpay_order_id,
             razorpayPaymentId: response.razorpay_payment_id,
             razorpaySignature: response.razorpay_signature,
           });
           clearCart();
-          router.push(`/order-success?orderId=${encodeURIComponent(order.orderId)}&paymentId=${encodeURIComponent(response.razorpay_payment_id)}`);
+          const params = new URLSearchParams({
+            orderId: order.orderId,
+            paymentId: response.razorpay_payment_id,
+            emailSent: verifyRes.emailSent ? '1' : '0',
+          });
+          if (verifyRes.emailTo) params.set('emailTo', verifyRes.emailTo);
+          if (!verifyRes.emailSent && verifyRes.emailError) {
+            params.set('emailError', verifyRes.emailError);
+          }
+          router.push(`/order-success?${params.toString()}`);
         } catch (err) {
           const msg = err instanceof ApiError ? err.message : 'Payment received but verification failed. We are checking — please don\'t pay again.';
           setPayError(msg);

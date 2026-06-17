@@ -152,8 +152,18 @@ export interface SubmitCustomOrderInput {
   referenceImageUrl?: string;
 }
 
+export interface SubmitCustomOrderResponse {
+  success: true;
+  id: string;
+  message: string;
+  emailSent: boolean;
+  emailTo: string;
+  emailError?: string;
+  emailErrorReason?: 'not-configured' | 'smtp-error';
+}
+
 export function submitCustomOrder(input: SubmitCustomOrderInput) {
-  return request<{ success: true; id: string; message: string }>('/custom-orders', {
+  return request<SubmitCustomOrderResponse>('/custom-orders', {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -220,8 +230,17 @@ export interface VerifyPaymentInput {
   razorpaySignature: string;
 }
 
+export interface VerifyPaymentResponse {
+  success: boolean;
+  orderId: string;
+  emailSent: boolean;
+  emailTo: string | null;
+  emailError?: string;
+  emailErrorReason?: 'not-configured' | 'smtp-error';
+}
+
 export function verifyPayment(orderId: string, input: VerifyPaymentInput) {
-  return request<{ success: boolean; orderId: string }>(
+  return request<VerifyPaymentResponse>(
     `/orders/${encodeURIComponent(orderId)}/verify-payment`,
     {
       method: 'POST',

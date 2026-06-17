@@ -102,6 +102,8 @@ export default function CustomOrderPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string>('');
   const [submittedId, setSubmittedId] = useState<string>('');
+  const [emailSent, setEmailSent] = useState<boolean>(false);
+  const [emailError, setEmailError] = useState<string>('');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // ── Validation ──────────────────────────────────────────────────────────────
@@ -149,6 +151,8 @@ export default function CustomOrderPage() {
         referenceImageUrl: form.referenceUrl.trim() || undefined,
       });
       setSubmittedId(res.id);
+      setEmailSent(res.emailSent);
+      setEmailError(res.emailError ?? '');
       setSubmitted(true);
     } catch (err) {
       const msg =
@@ -203,6 +207,12 @@ export default function CustomOrderPage() {
                 <span>📞</span>
                 <span>We&apos;ll contact you at <strong>{form.phone}</strong></span>
               </div>
+              {emailSent && (
+                <div className="co-success-detail" data-testid="co-email-sent">
+                  <span>📧</span>
+                  <span>Acknowledgement sent to <strong>{form.email}</strong></span>
+                </div>
+              )}
               <div className="co-success-detail">
                 <span>⏱️</span>
                 <span>Expect a reply within <strong>24 hours</strong></span>
@@ -212,6 +222,31 @@ export default function CustomOrderPage() {
                 <span>Your bespoke <strong>{form.artType}</strong> piece awaits</span>
               </div>
             </div>
+            {!emailSent && (
+              <div
+                role="alert"
+                data-testid="co-email-failed"
+                style={{
+                  margin: 'var(--space-4) auto 0',
+                  maxWidth: 480,
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(234,179,8,0.10)',
+                  border: '1px solid rgba(234,179,8,0.35)',
+                  color: '#854d0e',
+                  fontSize: '0.85rem',
+                  textAlign: 'left',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Heads up:</strong> we couldn&rsquo;t send the acknowledgement email to <strong>{form.email}</strong>. Your request is saved (reference <strong style={{ fontFamily: 'monospace' }}>{submittedId}</strong>) and Srilatha will still reach out via WhatsApp.
+                {emailError ? (
+                  <div style={{ marginTop: 6, fontSize: '0.75rem' }}>
+                    Reason: <code>{emailError}</code>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <div className="co-success-actions">
               <a
                 href={whatsappUrl}
