@@ -34,15 +34,23 @@ function isAdmin(req: HttpRequest): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Core WhatsApp sender — importable by other functions
+// Core WhatsApp sender — importable by other functions.
+// Returns a structured result rather than throwing, so callers can decide
+// whether a failed send is fatal (user-facing OTP) or best-effort (admin ping).
+// `reason: 'not-configured'` is a normal operational state in local/dev env;
+// callers should NOT surface success to users when this is returned.
 // ---------------------------------------------------------------------------
-export async function sendWhatsApp(to: string, message: string): Promise<void> {
+export type WhatsAppSendResult =
+  | { ok: true }
+  | { ok: false; reason: 'not-configured' | 'api-error'; detail?: string };
+
+export async function sendWhatsApp(to: string, message: string): Promise<WhatsAppSendResult> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
 
   if (!phoneNumberId || !accessToken) {
     console.warn('WhatsApp env vars not configured — skipping notification');
-    return;
+    return { ok: false, reason: 'not-configured' };
   }
 
   const url = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`;
@@ -53,18 +61,26 @@ export async function sendWhatsApp(to: string, message: string): Promise<void> {
     text: { body: message },
   };
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`WhatsApp API error: ${err}`);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => `HTTP ${res.status}`);
+      console.error('WhatsApp API error:', detail);
+      return { ok: false, reason: 'api-error', detail };
+    }
+    return { ok: true };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error('WhatsApp fetch failed:', detail);
+    return { ok: false, reason: 'api-error', detail };
   }
 }
 
@@ -164,13 +180,15 @@ async function httpSendWhatsApp(
     return json({ error: '`to` and `message` are required' }, 400);
   }
 
-  try {
-    await sendWhatsApp(to, message);
-    return json({ success: true });
-  } catch (err: any) {
-    context.error('WhatsApp send error:', err);
-    return json({ error: err.message ?? 'Failed to send WhatsApp message' }, 502);
+  const result = await sendWhatsApp(to, message);
+  if (!result.ok) {
+    context.error('WhatsApp send error:', result.reason, result.detail);
+    if (result.reason === 'not-configured') {
+      return json({ error: 'WhatsApp is not configured on this server (missing credentials).' }, 503);
+    }
+    return json({ error: result.detail ?? 'Failed to send WhatsApp message' }, 502);
   }
+  return json({ success: true });
 }
 
 app.http('whatsappSend', {

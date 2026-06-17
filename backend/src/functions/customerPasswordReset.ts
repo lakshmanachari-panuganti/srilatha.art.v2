@@ -133,27 +133,48 @@ async function forgotPasswordRequest(
       used: false,
     });
 
-    try {
-      await sendWhatsApp(
-        phone,
-        buildPasswordResetOtpMessage({
-          name: customer.name || 'there',
-          otp,
-          validityMinutes: OTP_VALIDITY_MIN,
-        }),
-      );
-    } catch (err) {
-      context.error('forgotPassword whatsapp send failed', err);
+    const sendResult = await sendWhatsApp(
+      phone,
+      buildPasswordResetOtpMessage({
+        name: customer.name || 'there',
+        otp,
+        validityMinutes: OTP_VALIDITY_MIN,
+      }),
+    );
+
+    if (!sendResult.ok) {
+      context.error('forgotPassword whatsapp send failed', sendResult.reason, sendResult.detail);
     }
 
     await recordPasswordResetEvent({
       userId: customer.email,
       phone,
       action: 'request',
+      reason: sendResult.ok ? undefined : `whatsapp-${sendResult.reason}`,
       req: request,
     });
 
-    const payload: Record<string, unknown> = { ok: true, validityMinutes: OTP_VALIDITY_MIN };
+    // If WhatsApp delivery failed and we have no fallback (EXPOSE_OTP is the
+    // operator escape hatch — not a dev-vs-prod branch, just a config flag),
+    // the user has no way to complete the flow. Surface a real error rather
+    // than claiming a message was sent.
+    if (!sendResult.ok && !EXPOSE_OTP) {
+      const detail =
+        sendResult.reason === 'not-configured'
+          ? 'WhatsApp delivery is not configured on this server, so we couldn\'t send the OTP. Please contact support to reset your password.'
+          : 'We couldn\'t send the OTP via WhatsApp right now. Please try again in a few minutes or contact support.';
+      return json({ error: detail }, 503);
+    }
+
+    // Outcome-based fields (env-agnostic):
+    //   sent=true  → WhatsApp Graph API confirmed delivery
+    //   sent=false → delivery did not happen; devOtp is included so the
+    //                operator-enabled fallback path can still complete
+    const payload: Record<string, unknown> = {
+      ok: true,
+      validityMinutes: OTP_VALIDITY_MIN,
+      sent: sendResult.ok,
+    };
     if (EXPOSE_OTP) payload.devOtp = otp;
     return json(payload);
   } catch (err) {
