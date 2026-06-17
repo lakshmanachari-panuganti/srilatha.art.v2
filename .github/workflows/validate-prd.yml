@@ -1,0 +1,54 @@
+name: Validate PRD after Deploy
+
+# Runs the post-deployment validation suite against PRODUCTION automatically
+# after either the PRD frontend or PRD backend deploy completes successfully.
+# Also runnable manually via "Run workflow".
+#
+# Pairs with `validate-dev.yml`. Important difference: this workflow NEVER
+# passes any test-customer credentials downstream. The runner observes the
+# empty env vars and automatically skips:
+#
+#   * the signed-in journey (so no real customer login event lands in PRD
+#     audit logs on every deploy)
+#   * the Razorpay sandbox checkout (so we never submit a real-or-test card
+#     transaction against the production Razorpay keys)
+#
+# Everything else runs identically to DEV: API health, page navigation,
+# mobile responsiveness, console errors, accessibility, screenshots.
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy Frontend · PRD"
+      - "Deploy Backend · PRD"
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  # PRD does NOT cancel in-progress — once a production validation starts we
+  # let it finish so the audit trail in the run history stays complete. A
+  # newer deploy will queue rather than terminate the running validation.
+  group: validate-prd
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event.workflow_run.conclusion == 'success'
+      }}
+    uses: ./.github/workflows/validation-shared.yml
+    with:
+      environment: prd
+      site_url: https://www.srilatha.art
+      api_url: https://func-srilathaartv2-prd.azurewebsites.net/api
+    # No `secrets:` block. The reusable workflow declares both test-customer
+    # secrets as `required: false`; with them omitted here, the runner's
+    # `process.env.TEST_CUSTOMER_EMAIL` / `_PASSWORD` resolve to empty
+    # strings and the signed-in + checkout journeys are skipped at runtime.
