@@ -1,0 +1,189 @@
+name: Post-Deployment Validation
+
+# ─── Why this is a separate workflow ────────────────────────────────────────
+# We deliberately keep deploy concerns (build, sign, upload, swap) separate
+# from validation concerns (was the deployment actually healthy?). The deploy
+# pipelines treat success as "the bytes landed"; this workflow treats success
+# as "the user-facing site is alive and meeting baseline quality".
+#
+# A failure here does NOT roll back the deploy — it surfaces the regression
+# so an operator can decide. We don't want a transient axe-core warning to
+# revert a production release.
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy Frontend · DEV"
+      - "Deploy Frontend · PRD"
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Which deployed environment to validate'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prd
+        default: dev
+      site_url:
+        description: 'Override site URL (optional — defaults to env mapping)'
+        required: false
+        type: string
+      api_url:
+        description: 'Override API URL (optional — defaults to env mapping)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: post-deploy-validation-${{ github.event.workflow_run.head_branch || inputs.environment }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate deployed environment
+    runs-on: ubuntu-latest
+    # For workflow_run we only run when the source deploy actually succeeded;
+    # for workflow_dispatch we always run.
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event.workflow_run.conclusion == 'success'
+      }}
+    timeout-minutes: 30
+
+    env:
+      NODE_VERSION: '22'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Resolve which environment we're validating ─────────────────────
+      - name: Resolve target environment
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ENV="${{ inputs.environment }}"
+          elif [ "${{ github.event.workflow_run.name }}" = "Deploy Frontend · PRD" ]; then
+            ENV="prd"
+          else
+            ENV="dev"
+          fi
+
+          # Defaults match the deploy-frontend-*.yml SITE_URL + API_BASE_URL.
+          if [ "$ENV" = "prd" ]; then
+            DEFAULT_SITE="https://www.srilatha.art"
+            DEFAULT_API="https://func-srilathaartv2-prd.azurewebsites.net/api"
+          else
+            DEFAULT_SITE="http://orange-forest-042a5df00.7.azurestaticapps.net/"
+            DEFAULT_API="https://func-srilathaartv2-dev.azurewebsites.net/api"
+          fi
+
+          SITE_URL_INPUT="${{ inputs.site_url || '' }}"
+          API_URL_INPUT="${{ inputs.api_url || '' }}"
+          SITE_URL="${SITE_URL_INPUT:-$DEFAULT_SITE}"
+          API_URL="${API_URL_INPUT:-$DEFAULT_API}"
+
+          echo "env=$ENV"           >> $GITHUB_OUTPUT
+          echo "site_url=$SITE_URL" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL"   >> $GITHUB_OUTPUT
+
+          echo "→ Target: $ENV"
+          echo "→ Site:   $SITE_URL"
+          echo "→ API:    $API_URL"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install validation dependencies
+        working-directory: tests/post-deploy
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        working-directory: tests/post-deploy
+        run: npx playwright install chromium --with-deps
+
+      # ── Health check w/ retries ────────────────────────────────────────
+      # CDN / SWA propagation can lag a few seconds behind the deploy
+      # workflow's success signal. Probe the site before we run anything
+      # expensive so we don't false-fail on warmup.
+      - name: Wait for deployment to be reachable
+        id: health
+        shell: bash
+        env:
+          SITE_URL: ${{ steps.target.outputs.site_url }}
+          API_URL: ${{ steps.target.outputs.api_url }}
+        run: |
+          set -uo pipefail
+          probe() {
+            local url="$1"
+            local label="$2"
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              CODE=$(curl -sS -L -o /dev/null -w "%{http_code}" --max-time 15 "$url" || echo "000")
+              echo "[$label] attempt $i — $url → HTTP $CODE"
+              if [ "$CODE" = "200" ] || [ "$CODE" = "204" ] || [ "$CODE" = "301" ] || [ "$CODE" = "302" ] || [ "$CODE" = "304" ]; then
+                echo "[$label] healthy"
+                return 0
+              fi
+              sleep 12
+            done
+            echo "::warning::$label did not respond healthy after 10 attempts (~2 min) — continuing so the validator can record what it sees."
+            return 1
+          }
+
+          probe "$SITE_URL" "site"  || true
+          probe "$API_URL/config/public" "api" || true
+
+      # ── Run the validation suite ────────────────────────────────────────
+      - name: Run validation suite
+        id: run
+        working-directory: tests/post-deploy
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ steps.target.outputs.site_url }}
+          API_URL: ${{ steps.target.outputs.api_url }}
+          TARGET_ENV: ${{ steps.target.outputs.env }}
+        run: |
+          mkdir -p artifacts/screenshots
+          node run-validation.mjs
+
+      # ── Always generate the artifact + summary, even on failure ────────
+      - name: Generate HTML report
+        if: always()
+        working-directory: tests/post-deploy
+        run: node generate-report.mjs
+
+      - name: Write GitHub Step Summary
+        if: always()
+        working-directory: tests/post-deploy
+        run: node write-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report-${{ steps.target.outputs.env }}-${{ github.run_id }}
+          path: tests/post-deploy/artifacts
+          retention-days: 30
+          if-no-files-found: warn
+
+      # ── Promote runner's exit code to the job result ────────────────────
+      # The actual exit code from run-validation.mjs has already been
+      # captured by `continue-on-error: true`; we re-fail here so the run
+      # is visibly red in the GitHub UI when validations broke.
+      - name: Fail job if validations failed
+        if: steps.run.outcome != 'success'
+        shell: bash
+        run: |
+          echo "::error::Post-deployment validation reported failures. Download the validation-report-${{ steps.target.outputs.env }} artifact for the full HTML report."
+          exit 1
