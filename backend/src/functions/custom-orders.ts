@@ -1,7 +1,8 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import crypto from 'node:crypto';
 import { upsertEntity, queryEntities } from '../utils/tableStorage';
-import { sendWhatsApp } from './whatsapp';
+import { sendWhatsApp, STORE_CONTACT_NUMBER } from './whatsapp';
+import { sendEmail } from '../utils/email';
+import { renderCustomOrderAck } from '../templates/emailTemplates';
 
 // ---------------------------------------------------------------------------
 // CORS helpers
@@ -73,17 +74,35 @@ async function handlePostCustomOrder(
       createdAt,
     });
 
-    // WhatsApp notification — non-fatal
+    // Admin WhatsApp notification — best-effort, never blocks the user
+    // because the request itself is already saved.
     const adminNumber = process.env.WHATSAPP_ADMIN_NUMBER;
     if (adminNumber) {
-      try {
-        await sendWhatsApp(
-          adminNumber,
-          `🎨 *New Custom Order Request*\n\nID: ${id}\nName: ${name}\nPhone: ${phone}\nEmail: ${email}\nDescription: ${description}\nBudget: ${budget ?? 'Not specified'}\nCategory: ${category ?? 'Not specified'}\n\nReply to discuss!`,
-        );
-      } catch (waErr) {
-        context.warn('WhatsApp notification failed (non-fatal):', waErr);
+      const waResult = await sendWhatsApp(
+        adminNumber,
+        `🎨 *New Custom Order Request*\n\nID: ${id}\nName: ${name}\nPhone: ${phone}\nEmail: ${email}\nDescription: ${description}\nBudget: ${budget ?? 'Not specified'}\nCategory: ${category ?? 'Not specified'}\n\nReply to discuss!`,
+      );
+      if (!waResult.ok) {
+        context.warn('Admin WhatsApp notification failed:', waResult.reason, waResult.detail);
       }
+    }
+
+    // Customer acknowledgement email. The exact send result is reported back
+    // to the client so the UI can show the truth (sent ✓ or sent ✗ with the
+    // real error), instead of pretending an email always went out.
+    const tpl = renderCustomOrderAck({
+      customerName: name,
+      referenceId: id,
+      storeContactNumber: STORE_CONTACT_NUMBER,
+    });
+    const emailResult = await sendEmail({
+      to: email,
+      subject: tpl.subject,
+      text: tpl.text,
+      html: tpl.html,
+    });
+    if (!emailResult.ok) {
+      context.error('Custom-order ack email failed:', emailResult.reason, emailResult.detail);
     }
 
     return json(
@@ -92,6 +111,11 @@ async function handlePostCustomOrder(
         id,
         message:
           'Your custom order request has been received. We will contact you within 24 hours.',
+        emailSent: emailResult.ok,
+        emailTo: email,
+        ...(emailResult.ok
+          ? {}
+          : { emailError: emailResult.detail, emailErrorReason: emailResult.reason }),
       },
       201,
     );

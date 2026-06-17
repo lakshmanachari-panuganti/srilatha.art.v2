@@ -3,6 +3,9 @@ import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { getTableClient, upsertEntity, queryEntities, deleteEntity, getEntity } from '../utils/tableStorage';
 import { computeCouponDiscount, getCouponByCode } from './coupons';
+import { sendEmail } from '../utils/email';
+import { renderOrderConfirmation } from '../templates/emailTemplates';
+import { STORE_CONTACT_NUMBER } from './whatsapp';
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -359,7 +362,65 @@ async function verifyPayment(
       timestamp: new Date().toISOString(),
     });
 
-    return json({ success: true, orderId });
+    // Customer order-confirmation email. Failure does NOT roll back the
+    // payment (the payment is real, the DB is the source of truth) but the
+    // exact failure is reported back so the UI can show the truth and the
+    // operator/customer can act on it.
+    const customerInfo = safeJsonParse(confirmedEntity.customer) as
+      | { name?: string; email?: string; phone?: string }
+      | null;
+    const addressInfo = safeJsonParse(confirmedEntity.address) as
+      | { line1?: string; city?: string; state?: string; pincode?: string }
+      | null;
+
+    let emailSent = false;
+    let emailError: string | undefined;
+    let emailErrorReason: 'not-configured' | 'smtp-error' | undefined;
+    const emailTo = customerInfo?.email;
+
+    if (emailTo) {
+      const items = await queryEntities<{ name: string; qty: number; price: number }>(
+        'orderItems',
+        `PartitionKey eq '${orderId}'`,
+      );
+      const itemsList =
+        items?.map((i) => `  • ${i.name} × ${i.qty} — ₹${(i.price / 100).toLocaleString('en-IN')}`).join('\n') ?? '';
+      const shippingAddress = addressInfo
+        ? `${addressInfo.line1 ?? ''}\n${addressInfo.city ?? ''}, ${addressInfo.state ?? ''} ${addressInfo.pincode ?? ''}`.trim()
+        : '';
+
+      const tpl = renderOrderConfirmation({
+        customerName: customerInfo?.name || 'there',
+        orderId,
+        total: typeof confirmedEntity.total === 'number' ? confirmedEntity.total : 0,
+        itemsList,
+        shippingAddress,
+        storeContactNumber: STORE_CONTACT_NUMBER,
+      });
+      const emailResult = await sendEmail({
+        to: emailTo,
+        subject: tpl.subject,
+        text: tpl.text,
+        html: tpl.html,
+      });
+      emailSent = emailResult.ok;
+      if (!emailResult.ok) {
+        emailError = emailResult.detail;
+        emailErrorReason = emailResult.reason;
+        context.error('Order confirmation email failed:', emailResult.reason, emailResult.detail);
+      }
+    } else {
+      emailError = 'No customer email on order';
+      emailErrorReason = 'not-configured';
+    }
+
+    return json({
+      success: true,
+      orderId,
+      emailSent,
+      emailTo: emailTo ?? null,
+      ...(emailSent ? {} : { emailError, emailErrorReason }),
+    });
   } catch (err) {
     context.error('verifyPayment error', err);
     return json({ error: 'Internal server error' }, 500);
