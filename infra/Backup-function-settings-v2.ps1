@@ -115,7 +115,7 @@ if ($KeyVaultName -match '--') {
 # -------------------------------------------------------
 # 3. Authenticate via service principal
 # -------------------------------------------------------
-if ($IgnoreAzAuth.present) {
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 $ctx = Get-AzContext

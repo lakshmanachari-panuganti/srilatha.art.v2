@@ -112,7 +112,7 @@ foreach ($envVar in @('MY_APPREG_CLIENT_ID', 'MY_APPREG_CLIENT_SECRET', 'MY_APPR
 #    L1: Comment updated - v1 said "Sign in using the service principal"
 #    but the code delegates entirely to Azure-Connectivity.ps1.
 # -------------------------------------------------------
-if($IgnoreAzAuth.present){
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 $ctx = Get-AzContext

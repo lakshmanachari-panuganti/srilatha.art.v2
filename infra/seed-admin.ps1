@@ -147,7 +147,7 @@ Set-StrictMode -Version Latest
 # so this script and the deploy script stay in lockstep - if the
 # storage-account naming convention ever changes, both files change
 # together and we only need to verify one source of truth.
-if ($IgnoreAzAuth) {
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 $AppSlug = 'srilathaartv2'

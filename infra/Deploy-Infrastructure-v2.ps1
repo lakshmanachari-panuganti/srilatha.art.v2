@@ -135,7 +135,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-if ($IgnoreAzAuth) {
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 

@@ -133,7 +133,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if ($IgnoreAzAuth) {
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 
@@ -196,7 +196,6 @@ foreach ($entry in $settingsToApply.GetEnumerator()) {
 $safeToDisplay = @('INVOICE_LOGO_URL', 'GOOGLE_CLIENT_ID')
 
 # ─── 4. Authenticate via service principal ────────────────────────────────
-& "$PSScriptRoot\Azure-Connectivity.ps1"
 $ctx = Get-AzContext
 
 # ─── 5. Confirm the target Function App exists ────────────────────────────
@@ -209,7 +208,7 @@ $showExit = $LASTEXITCODE
 if ($showExit -ne 0) {
     throw "Function App '$($envCfg.FunctionAppName)' is not reachable in resource group '$($envCfg.ResourceGroup)' (az exit $showExit): $showOutput"
 }
-
+    
 # ─── 6. Banner ────────────────────────────────────────────────────────────
 # Printed before the PRD gate so the operator confirms with full context
 # (which subscription, which Function App, which keys) visible.

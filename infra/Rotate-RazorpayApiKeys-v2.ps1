@@ -141,7 +141,7 @@ if (-not $trimmedKeyId.StartsWith($envCfg.ExpectedPrefix)) {
 }
 
 # ─── 4. Authenticate via service principal ────────────────────────────────
-if ($IgnoreAzAuth) {
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 $ctx = Get-AzContext

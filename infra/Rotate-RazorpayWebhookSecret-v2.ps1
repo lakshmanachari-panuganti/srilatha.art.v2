@@ -140,7 +140,7 @@ if ([string]::IsNullOrWhiteSpace($WebhookSecret)) {
 }
 
 # ─── 4. Authenticate via service principal ────────────────────────────────
-if ($IgnoreAzAuth) {
+if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
 }
 $ctx = Get-AzContext
