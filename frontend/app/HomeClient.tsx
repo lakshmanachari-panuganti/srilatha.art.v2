@@ -265,7 +265,7 @@ export default function HomeClient() {
                 <span style={{ background: 'var(--gradient-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>with Care</span>
               </h2>
               <p style={{ color: 'var(--text-secondary)', lineHeight: 1.8, marginBottom: 'var(--sp-6)', fontSize: '0.95rem' }}>
-                Srilatha is a self-taught artist who discovered the magic of resin art in 2019.
+                Srilatha is an enthusiastic artist who discovered the magic of resin art in 2019.
                 Captivated by how liquid resin captures light, color, and movement, she began experimenting
                 in her home studio — combining modern resin techniques with the rich folk art motifs of India.
                 What started as a creative outlet has grown into a thriving handmade art business.

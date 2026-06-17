@@ -7,7 +7,7 @@ import { seedImg } from '@/lib/assets';
 
 export const metadata: Metadata = {
   title: 'About Srilatha',
-  description: 'The story of Srilatha Art — a self-taught artist working with resin, lippan, dot mandala and Indian folk art motifs. Each piece is handmade in our studio.',
+  description: 'The story of Srilatha Art — an enthusiastic artist working with resin, lippan, dot mandala and Indian folk art motifs. Each piece is handmade in our studio.',
 };
 
 const VALUES = [
@@ -30,7 +30,7 @@ export default function AboutPage() {
         <Prose>
           <h2>How it started</h2>
           <p>
-            Srilatha is a self-taught artist who discovered the magic of resin art in 2019. Captivated by how liquid resin captures light, colour and movement, she began experimenting in her home studio — combining modern resin techniques with the rich folk art motifs of India.
+            Srilatha is an enthusiastic artist who discovered the magic of resin art in 2019. Captivated by how liquid resin captures light, colour and movement, she began experimenting in her home studio — combining modern resin techniques with the rich folk art motifs of India.
           </p>
           <p>
             What started as a creative outlet has grown into a small, growing handmade art business. Every piece sold from this studio is poured, painted and packed by Srilatha herself.
