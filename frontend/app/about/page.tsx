@@ -7,7 +7,7 @@ import { seedImg } from '@/lib/assets';
 
 export const metadata: Metadata = {
   title: 'About Srilatha',
-  description: 'The story of Srilatha Art — an enthusiastic artist working with resin, lippan, dot mandala and Indian folk art motifs. Each piece is handmade in our studio.',
+  description: 'The story of Srilatha Art — a passionate artist exploring a diverse range of creative styles, including resin art, Lippan art, dot mandala, folk-inspired designs, and other contemporary and traditional art forms. Every piece is thoughtfully handcrafted in our studio with creativity, care, and attention to detail.',
 };
 
 const VALUES = [
