@@ -1,0 +1,30 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "DefaultEndpointsProtocol=https;AccountName=stsrilathaartwhatsappv2;AccountKey=<key>;EndpointSuffix=core.windows.net",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+    "WEBSITE_NODE_DEFAULT_VERSION": "~22",
+
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "<app insights connection string>",
+
+    "WHATSAPP_ACCESS_TOKEN": "EAAxxxxxxxxxxxxxxxxxxxxx",
+    "WHATSAPP_PHONE_NUMBER_ID": "1234567890",
+    "WHATSAPP_WABA_ID": "1234567890",
+    "WHATSAPP_APP_SECRET": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "WHATSAPP_WEBHOOK_VERIFY_TOKEN": "pick-a-long-random-string-and-paste-it-here-and-in-meta-portal",
+    "WHATSAPP_GRAPH_VERSION": "v20.0",
+
+    "WHATSAPP_QUEUE_INBOUND": "whatsapp-webhooks",
+    "WHATSAPP_QUEUE_OUTBOUND": "whatsapp-outbound",
+
+    "TABLE_MESSAGES": "whatsappMessages",
+    "TABLE_CONTACTS": "whatsappContacts",
+    "TABLE_TEMPLATES": "whatsappTemplates",
+    "TABLE_WEBHOOK_LOGS": "whatsappWebhookLogs"
+  },
+  "Host": {
+    "LocalHttpPort": 7071,
+    "CORS": "*"
+  }
+}
