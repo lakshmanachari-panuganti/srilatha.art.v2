@@ -1,0 +1,24 @@
+// Entry point — importing each module triggers app.http() registrations
+import './functions/orders';
+import './functions/whatsappWebhook';
+import './functions/whatsapp';
+import './functions/razorpay-webhook';
+import './functions/products';
+import './functions/custom-orders';
+import './functions/coupons';
+import './functions/adminAuth';
+import './functions/customerAuth';
+import './functions/customerGoogleAuth';
+import './functions/customerPasswordReset';
+import './functions/productAdmin';
+import './functions/orderAdmin';
+import './functions/couponsAdmin';
+import './functions/announcements';
+import './functions/reviewsAdmin';
+import './functions/whatsappAdmin';
+import './functions/customOrdersAdmin';
+import './functions/adminStats';
+import './functions/upload';
+import './functions/productAI';
+import './functions/publicConfig';
+import './functions/customerReviews';

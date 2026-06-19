@@ -1,0 +1,148 @@
+name: Validation · Shared
+
+# ─── Reusable post-deployment validation pipeline ───────────────────────────
+#
+# This workflow holds every step of the post-deployment validation suite —
+# checkout, Playwright install, health probe, runner, HTML report, GitHub
+# step summary, artifact upload, exit-code promotion.
+#
+# It is `workflow_call`-only: it never runs on its own. The two env-specific
+# entry points (`validate-dev.yml` and `validate-prd.yml`) invoke it with the
+# right URLs and the right (or no) test-customer secrets so each environment
+# stays isolated.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Logical environment label (dev | prd) — used in the
+          report and artifact name only.'
+        required: true
+        type: string
+      site_url:
+        description: 'Storefront URL the validator drives Playwright against.'
+        required: true
+        type: string
+      api_url:
+        description: 'Azure Functions API base URL used by direct API probes.'
+        required: true
+        type: string
+    secrets:
+      test_customer_email:
+        description: 'Optional test customer email. When unset (e.g. PRD) the
+          runner skips the signed-in journey and the Razorpay checkout.'
+        required: false
+      test_customer_password:
+        description: 'Optional test customer password. Paired with
+          test_customer_email.'
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    name: Validate ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NODE_VERSION: '22'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show target
+        shell: bash
+        run: |
+          echo "→ Environment: ${{ inputs.environment }}"
+          echo "→ Site URL:    ${{ inputs.site_url }}"
+          echo "→ API URL:     ${{ inputs.api_url }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install validation dependencies
+        working-directory: tests/post-deploy
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright Chromium
+        working-directory: tests/post-deploy
+        run: npx playwright install chromium --with-deps
+
+      # ── Health probe with retries ───────────────────────────────────────
+      # CDN / Static Web Apps propagation can lag a few seconds behind the
+      # deploy workflow's `success` signal. Probe before launching Playwright
+      # so a transient warmup window doesn't false-fail the run.
+      - name: Wait for deployment to be reachable
+        shell: bash
+        env:
+          SITE_URL: ${{ inputs.site_url }}
+          API_URL: ${{ inputs.api_url }}
+        run: |
+          set -uo pipefail
+          probe() {
+            local url="$1"
+            local label="$2"
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              CODE=$(curl -sS -L -o /dev/null -w "%{http_code}" --max-time 15 "$url" || echo "000")
+              echo "[$label] attempt $i — $url → HTTP $CODE"
+              case "$CODE" in
+                200|204|301|302|304) echo "[$label] healthy"; return 0 ;;
+              esac
+              sleep 12
+            done
+            echo "::warning::$label did not respond healthy after 10 attempts (~2 min) — continuing so the runner can record what it sees."
+            return 1
+          }
+
+          probe "$SITE_URL" "site" || true
+          probe "$API_URL/config/public" "api"  || true
+
+      # ── Run the validation suite ────────────────────────────────────────
+      # `continue-on-error: true` lets the report + artifact steps below run
+      # even on failure. The final step re-promotes the runner's exit code so
+      # the GitHub run is visibly red when a validation broke.
+      - name: Run validation suite
+        id: run
+        working-directory: tests/post-deploy
+        continue-on-error: true
+        env:
+          SITE_URL: ${{ inputs.site_url }}
+          API_URL: ${{ inputs.api_url }}
+          TARGET_ENV: ${{ inputs.environment }}
+          TEST_CUSTOMER_EMAIL: ${{ secrets.test_customer_email }}
+          TEST_CUSTOMER_PASSWORD: ${{ secrets.test_customer_password }}
+        run: |
+          mkdir -p artifacts/screenshots
+          node run-validation.mjs
+
+      - name: Generate HTML report
+        if: always()
+        working-directory: tests/post-deploy
+        run: node generate-report.mjs
+
+      - name: Write GitHub Step Summary
+        if: always()
+        working-directory: tests/post-deploy
+        run: node write-summary.mjs >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report-${{ inputs.environment }}-${{ github.run_id }}
+          path: tests/post-deploy/artifacts
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail job if validations failed
+        if: steps.run.outcome != 'success'
+        shell: bash
+        run: |
+          echo "::error::Post-deployment validation for ${{ inputs.environment }} reported failures. Download validation-report-${{ inputs.environment }}-${{ github.run_id }} for the full HTML report."
+          exit 1

@@ -1,0 +1,16 @@
+{
+  "name": "srilatha-post-deploy-validation",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Post-deployment validation suite. Runs against the deployed environment from .github/workflows/post-deployment-validation.yml — independent of the application's package.json so failures here cannot block the deploy pipeline.",
+  "type": "module",
+  "scripts": {
+    "validate": "node run-validation.mjs",
+    "report": "node generate-report.mjs",
+    "summary": "node write-summary.mjs"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "playwright": "^1.49.0"
+  }
+}

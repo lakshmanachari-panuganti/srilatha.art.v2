@@ -1,0 +1,120 @@
+name: Deploy Frontend · DEV
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend-dev.yml'
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: frontend
+  API_BASE_URL: https://func-srilathaartv2-dev.azurewebsites.net/api
+  ASSET_BASE_URL: https://stsrilathaartv2dev.blob.core.windows.net/products
+  SITE_URL: https://www.lucky1.online
+  FUNCTION_APP_NAME: func-srilathaartv2-dev
+  FUNCTION_APP_RG: rg-srilathaartv2-dev
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Frontend - Dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # SWA action posts PR preview URL as comment
+      id-token: write        # required for OIDC token exchange with Azure
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          lfs: false
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          npm install --no-audit --no-fund
+
+      - name: Type-check
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: npm run typecheck
+
+      # ── Fetch RAZORPAY_KEY_ID from Function App settings before build ────────
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_DEV }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch Razorpay Key ID from Function App settings
+        run: |
+          RAZORPAY_KEY_ID=$(az functionapp config appsettings list \
+            --name "$FUNCTION_APP_NAME" \
+            --resource-group "$FUNCTION_APP_RG" \
+            --query "[?name=='RAZORPAY_KEY_ID'].value" \
+            --output tsv)
+          if [ -z "$RAZORPAY_KEY_ID" ]; then
+            echo "::error::RAZORPAY_KEY_ID not found in Function App settings for $FUNCTION_APP_NAME"
+            exit 1
+          fi
+          echo "::add-mask::$RAZORPAY_KEY_ID"
+          echo "RAZORPAY_KEY_ID=$RAZORPAY_KEY_ID" >> $GITHUB_ENV
+
+      # ── Build Next.js with secrets from Key Vault ─────────────────────────
+      - name: Build (Next.js)
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_ASSET_BASE_URL: ${{ env.ASSET_BASE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
+          NEXT_PUBLIC_RAZORPAY_KEY_ID: ${{ env.RAZORPAY_KEY_ID }}
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Deploy to Azure Static Web Apps
+        id: swa
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: ${{ env.WORKING_DIRECTORY }}/out
+          config_file_location: ${{ env.WORKING_DIRECTORY }}
+          skip_app_build: true
+          skip_api_build: true
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ env.API_BASE_URL }}
+          NEXT_PUBLIC_ASSET_BASE_URL: ${{ env.ASSET_BASE_URL }}
+          NEXT_PUBLIC_SITE_URL: ${{ env.SITE_URL }}
+
+  close-preview:
+    name: Close PR Preview (DEV)
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close Preview
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          action: close

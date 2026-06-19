@@ -1,0 +1,53 @@
+name: Validate DEV after Deploy
+
+# Runs the post-deployment validation suite against the DEV environment
+# automatically after either the DEV frontend or DEV backend deploy completes
+# successfully. Also runnable manually via "Run workflow".
+#
+# Pairs with `validate-prd.yml`. The two never cross — DEV credentials are
+# scoped to this file; PRD never references them.
+
+on:
+  workflow_run:
+    # Listen to BOTH the frontend and backend DEV deploys: a backend change
+    # can break the storefront just as easily (API contract drift), and a
+    # frontend deploy obviously can. Concurrency below ensures we only run
+    # one DEV validation at a time.
+    workflows:
+      - "Deploy Frontend · DEV"
+      - "Deploy Backend · DEV"
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  # DEV cancels in-progress: if two deploys land in quick succession, only
+  # the newer validation needs to finish.
+  group: validate-dev
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    # workflow_run fires regardless of conclusion — gate to `success` so we
+    # don't validate a deploy that failed before any bytes hit Azure. For
+    # workflow_dispatch we always run.
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event.workflow_run.conclusion == 'success'
+      }}
+    uses: ./.github/workflows/validation-shared.yml
+    with:
+      environment: dev
+      # DEV Static Web App canonical URL — bypasses any custom-domain CDN so
+      # we validate the bytes Azure actually served, not what a cache front
+      # may have warmed up.
+      site_url: https://orange-forest-042a5df00.7.azurestaticapps.net
+      api_url: https://func-srilathaartv2-dev.azurewebsites.net/api
+    secrets:
+      test_customer_email: ${{ secrets.POST_DEPLOY_TEST_CUSTOMER_EMAIL_DEV }}
+      test_customer_password: ${{ secrets.POST_DEPLOY_TEST_CUSTOMER_PASSWORD_DEV }}

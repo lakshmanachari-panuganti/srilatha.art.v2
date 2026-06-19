@@ -1,0 +1,28 @@
+{
+  "name": "srilatha-whatsapp-service",
+  "version": "1.0.0",
+  "description": "WhatsApp Cloud API microservice for Srilatha Art (webhooks + outbound send + storage).",
+  "private": true,
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "prestart": "npm run clean && npm run build",
+    "start": "func start",
+    "deploy": "npm run clean && npm run build && func azure functionapp publish func-srilathaartwhatsappv2"
+  },
+  "dependencies": {
+    "@azure/data-tables": "^13.3.0",
+    "@azure/functions": "^4.5.0",
+    "@azure/storage-queue": "^12.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "rimraf": "^5.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
