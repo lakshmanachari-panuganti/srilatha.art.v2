@@ -1,0 +1,90 @@
+name: Deploy WhatsApp Service · SHARED
+
+# Single Function App (func-srilathaartwhatsappv2) in rg-srilathaartwhatsappv2-shared
+# serves both environments — the WhatsApp tenant (phone number / WABA) is shared,
+# so there is no dev/prd split for this microservice.
+#
+# Triggers on push to develop or main so the live service tracks the integrated
+# code; PRs only build to catch regressions, no deploy.
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'whatsapp-service/**'
+      - '.github/workflows/deploy-whatsapp-service.yml'
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'whatsapp-service/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-whatsapp-service
+  cancel-in-progress: false   # never cancel a deploy mid-flight against shared infra
+
+env:
+  NODE_VERSION: '22'
+  WORKING_DIRECTORY: whatsapp-service
+  AZURE_FUNCTIONAPP_NAME: func-srilathaartwhatsappv2
+  AZURE_RESOURCE_GROUP: rg-srilathaartwhatsappv2-shared
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy WhatsApp Service
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for OIDC token exchange with Azure
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          lfs: false
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: whatsapp-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build TypeScript
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: |
+          npm run build
+          npm prune --omit=dev
+
+      - name: Package service as zip
+        if: github.event_name != 'pull_request'
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+        run: zip -r -q "$RUNNER_TEMP/deploy.zip" . -x ".git/*" ".github/*" "src/*" "*.ts" "tsconfig.json"
+
+      - name: Azure login (OIDC)
+        if: github.event_name != 'pull_request'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_WHATSAPP }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Functions
+        if: github.event_name != 'pull_request'
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: ${{ runner.temp }}/deploy.zip

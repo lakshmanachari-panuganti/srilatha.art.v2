@@ -33,6 +33,22 @@ export const messagesRepo = {
     return results;
   },
 
+  // Bounded scan. Table Storage cannot order by timestamp server-side, so the
+  // caller treats this as "recent N" by sorting client-side. Hard cap 500.
+  async list(limit: number, phone?: string): Promise<MessageEntity[]> {
+    const client = getTable(TABLE_MESSAGES);
+    const cap = Math.min(Math.max(limit, 1), 500);
+    const filter = phone ? odata`PartitionKey eq ${normalizePhone(phone)}` : undefined;
+    const results: MessageEntity[] = [];
+    const iter = client.listEntities<MessageEntity>({ queryOptions: { filter } });
+    for await (const row of iter) {
+      results.push(row);
+      if (results.length >= cap) break;
+    }
+    results.sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''));
+    return results;
+  },
+
   async updateStatus(row: MessageEntity, status: string, errorDetail?: string): Promise<void> {
     const client = getTable(TABLE_MESSAGES);
     await client.upsertEntity({
@@ -83,6 +99,19 @@ export const contactsRepo = {
       throw err;
     }
   },
+
+  async list(limit: number): Promise<ContactEntity[]> {
+    const client = getTable(TABLE_CONTACTS);
+    const cap = Math.min(Math.max(limit, 1), 500);
+    const results: ContactEntity[] = [];
+    const iter = client.listEntities<ContactEntity>();
+    for await (const row of iter) {
+      results.push(row);
+      if (results.length >= cap) break;
+    }
+    results.sort((a, b) => (b.lastSeenAt ?? '').localeCompare(a.lastSeenAt ?? ''));
+    return results;
+  },
 };
 
 // ─── Templates ──────────────────────────────────────────────────────────────
@@ -99,6 +128,15 @@ export const templatesRepo = {
       if (isNotFound(err)) return null;
       throw err;
     }
+  },
+
+  async list(): Promise<TemplateEntity[]> {
+    const client = getTable(TABLE_TEMPLATES);
+    const results: TemplateEntity[] = [];
+    const iter = client.listEntities<TemplateEntity>();
+    for await (const row of iter) results.push(row);
+    results.sort((a, b) => a.rowKey.localeCompare(b.rowKey));
+    return results;
   },
 };
 
