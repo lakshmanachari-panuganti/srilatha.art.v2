@@ -347,17 +347,23 @@ export interface AdminWhatsappSummary {
   unreadCount: number;
 }
 
+// Shape mirrors whatsapp-service /api/health response (proxied through
+// backend /mgmt/whatsapp/health). Diagnostic state (lastWebhookError etc.)
+// was dropped when the microservice took over — connectivity + per-credential
+// configuration is what matters at a glance; deep diagnostics live in App
+// Insights.
 export interface AdminWhatsappHealth {
-  lastWebhookReceivedAt: string | null;
-  lastWebhookError: string | null;
-  lastWebhookErrorAt: string | null;
-  lastSendOkAt: string | null;
-  lastSendError: string | null;
-  lastSendErrorDetail: string | null;
-  lastSendErrorAt: string | null;
-  lastVerifyOkAt: string | null;
-  lastVerifyError: string | null;
-  lastVerifyErrorAt: string | null;
+  status: 'healthy' | 'degraded';
+  timestamp: string;
+  durationMs: number;
+  version: string;
+  environment: {
+    functionAppName?: string;
+    region?: string;
+    runtime?: string;
+    functionsExtensionVersion?: string;
+    appInsightsConfigured: boolean;
+  };
   configured: {
     accessToken: boolean;
     phoneNumberId: boolean;
@@ -365,6 +371,8 @@ export interface AdminWhatsappHealth {
     appSecret: boolean;
     wabaId: boolean;
   };
+  tables: Record<string, { ok: boolean; error?: string }>;
+  queues: Record<string, { ok: boolean; approxCount?: number; error?: string }>;
 }
 
 export type AiErrorCode =

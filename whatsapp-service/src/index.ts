@@ -8,3 +8,4 @@ import './functions/health';
 import './functions/templates-api';
 import './functions/contacts-api';
 import './functions/messages-api';
+import './functions/conversations-api';

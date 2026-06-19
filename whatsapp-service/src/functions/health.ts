@@ -70,11 +70,15 @@ async function handler(_req: HttpRequest, context: InvocationContext): Promise<H
       runtime: `node ${process.versions.node}`,
       functionsExtensionVersion: process.env.FUNCTIONS_EXTENSION_VERSION,
       appInsightsConfigured: Boolean(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING),
-      metaCredentialsConfigured:
-        Boolean(process.env.WHATSAPP_ACCESS_TOKEN) &&
-        Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID) &&
-        Boolean(process.env.WHATSAPP_APP_SECRET) &&
-        Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
+    },
+    // Per-credential booleans — admin UI uses this to show which Meta secret
+    // is missing if any. Names match the env-var stems for easy diagnosis.
+    configured: {
+      accessToken:   Boolean(process.env.WHATSAPP_ACCESS_TOKEN),
+      phoneNumberId: Boolean(process.env.WHATSAPP_PHONE_NUMBER_ID),
+      verifyToken:   Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
+      appSecret:     Boolean(process.env.WHATSAPP_APP_SECRET),
+      wabaId:        Boolean(process.env.WHATSAPP_WABA_ID),
     },
     tables,
     queues,
