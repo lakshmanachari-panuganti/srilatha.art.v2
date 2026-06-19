@@ -135,6 +135,10 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $IgnoreAzAuth) {
     & "$PSScriptRoot\Azure-Connectivity.ps1"
+} 
+$ctx = Get-AzContext
+if (-not $ctx) {
+    throw "No active Azure PowerShell context found."
 }
 
 # Disable the PS7.4+ default of throwing on native-command non-zero exits, so
