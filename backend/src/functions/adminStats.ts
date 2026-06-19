@@ -1,5 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
-import { queryEntitiesAll } from '../utils/tableStorage';
+import { queryEntitiesAll, queryEntities } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
 const CORS_HEADERS: Record<string, string> = {
@@ -29,6 +29,18 @@ interface ProductEntity {
 
 interface CustomOrderEntity { partitionKey: string; rowKey: string; }
 interface ReviewEntity { partitionKey: string; rowKey: string; }
+interface WhatsappMessageEntity { partitionKey: string; rowKey: string; direction?: string; read?: boolean; }
+interface WhatsappHealthEntity {
+  partitionKey: string;
+  rowKey: string;
+  lastWebhookReceivedAt?: string;
+  lastSendOkAt?: string;
+  lastSendError?: string;
+  lastSendErrorDetail?: string;
+  lastSendErrorAt?: string;
+  lastWebhookError?: string;
+  lastWebhookErrorAt?: string;
+}
 
 async function adminGetStats(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
@@ -36,11 +48,13 @@ async function adminGetStats(request: HttpRequest, context: InvocationContext): 
   if ('status' in auth) return auth;
 
   try {
-    const [orders, products, customOrders, reviews] = await Promise.all([
+    const [orders, products, customOrders, reviews, whatsappMessages, whatsappHealthRows] = await Promise.all([
       queryEntitiesAll<OrderEntity>('orders'),
       queryEntitiesAll<ProductEntity>('products'),
       queryEntitiesAll<CustomOrderEntity>('customOrders'),
       queryEntitiesAll<ReviewEntity>('reviews'),
+      queryEntitiesAll<WhatsappMessageEntity>('whatsappMessages').catch(() => [] as WhatsappMessageEntity[]),
+      queryEntities<WhatsappHealthEntity>('whatsappHealth', `PartitionKey eq 'health' and RowKey eq 'singleton'`).catch(() => [] as WhatsappHealthEntity[]),
     ]);
 
     const now = Date.now();
@@ -86,6 +100,15 @@ async function adminGetStats(request: HttpRequest, context: InvocationContext): 
       reviews: {
         total: reviews.length,
         pending: reviews.filter(r => r.partitionKey === 'pending').length,
+      },
+      whatsapp: {
+        total: whatsappMessages.length,
+        unread: whatsappMessages.filter(m => m.direction === 'inbound' && m.read !== true).length,
+        lastWebhookReceivedAt: whatsappHealthRows[0]?.lastWebhookReceivedAt ?? null,
+        lastSendOkAt: whatsappHealthRows[0]?.lastSendOkAt ?? null,
+        lastError: whatsappHealthRows[0]?.lastSendError || whatsappHealthRows[0]?.lastWebhookError || null,
+        lastErrorDetail: whatsappHealthRows[0]?.lastSendErrorDetail || null,
+        lastErrorAt: whatsappHealthRows[0]?.lastSendErrorAt || whatsappHealthRows[0]?.lastWebhookErrorAt || null,
       },
     });
   } catch (err) {

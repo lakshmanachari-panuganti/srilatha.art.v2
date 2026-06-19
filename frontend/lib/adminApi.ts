@@ -90,6 +90,15 @@ export const adminApi = {
     products: { total: number; active: number; lowStockCount: number; lowStock: Array<{ id: string; category: string; stockCount: number }> };
     customOrders: { total: number; byStatus: Record<string, number> };
     reviews: { total: number; pending: number };
+    whatsapp: {
+      total: number;
+      unread: number;
+      lastWebhookReceivedAt: string | null;
+      lastSendOkAt: string | null;
+      lastError: string | null;
+      lastErrorDetail: string | null;
+      lastErrorAt: string | null;
+    };
   }>('/mgmt/stats'),
 
   // Products
@@ -156,6 +165,10 @@ export const adminApi = {
     request<{ conversations: AdminWhatsappSummary[]; total: number }>('/mgmt/whatsapp/conversations'),
   getConversation: (phone: string) =>
     request<{ phone: string; messages: AdminWhatsappMessage[] }>(`/mgmt/whatsapp/conversations/${encodeURIComponent(phone)}`),
+  markConversationRead: (phone: string) =>
+    request<{ success: true; updated: number }>(`/mgmt/whatsapp/conversations/${encodeURIComponent(phone)}/read`, { method: 'POST' }),
+  whatsappHealth: () =>
+    request<AdminWhatsappHealth>('/mgmt/whatsapp/health'),
 
   // AI: generate product content from a public image URL
   aiGenerateFromUrl: (imageUrl: string) =>
@@ -327,9 +340,31 @@ export interface AdminReview {
 
 export interface AdminWhatsappSummary {
   phone: string;
+  contactName?: string;
   lastMessage: string;
   lastDirection: 'inbound' | 'outbound';
   lastTimestamp: string;
+  unreadCount: number;
+}
+
+export interface AdminWhatsappHealth {
+  lastWebhookReceivedAt: string | null;
+  lastWebhookError: string | null;
+  lastWebhookErrorAt: string | null;
+  lastSendOkAt: string | null;
+  lastSendError: string | null;
+  lastSendErrorDetail: string | null;
+  lastSendErrorAt: string | null;
+  lastVerifyOkAt: string | null;
+  lastVerifyError: string | null;
+  lastVerifyErrorAt: string | null;
+  configured: {
+    accessToken: boolean;
+    phoneNumberId: boolean;
+    verifyToken: boolean;
+    appSecret: boolean;
+    wabaId: boolean;
+  };
 }
 
 export type AiErrorCode =
@@ -362,4 +397,8 @@ export interface AdminWhatsappMessage {
   templateName?: string;
   status?: string;
   timestamp: string;
+  read?: boolean;
+  wamid?: string;
+  type?: string;
+  contactName?: string;
 }

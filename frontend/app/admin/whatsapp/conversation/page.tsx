@@ -14,7 +14,11 @@ function ConversationInner() {
   useEffect(() => {
     if (!phone) { setError('Missing phone'); setLoading(false); return; }
     adminApi.getConversation(phone)
-      .then(r => setMessages(r.messages))
+      .then(r => {
+        setMessages(r.messages);
+        // Fire-and-forget mark-read so the unread badge clears.
+        adminApi.markConversationRead(phone).catch(() => undefined);
+      })
       .catch(err => setError(err instanceof AdminApiError ? err.message : 'Failed'))
       .finally(() => setLoading(false));
   }, [phone]);

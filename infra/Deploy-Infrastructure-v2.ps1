@@ -203,7 +203,7 @@ $tableNames = @(
     'refreshTokens',         # JWT refresh token store — required for logout / revocation
     # Ops & observability
     'auditLog', 'rateLimits',
-    'emailLogs', 'whatsappMessages'
+    'emailLogs', 'whatsappMessages', 'whatsappHealth'
     # Removed: 'announcements'        — hardcoded in AnnouncementBar.tsx; config table covers CMS use
     # Removed: 'cart'                 — stored in localStorage (CartProvider.tsx); no server-side cart in v1
     # Removed: 'notifications'        — redundant; emailLogs + whatsappMessages cover all channels

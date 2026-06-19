@@ -1,5 +1,6 @@
 // Entry point — importing each module triggers app.http() registrations
 import './functions/orders';
+import './functions/whatsappWebhook';
 import './functions/whatsapp';
 import './functions/razorpay-webhook';
 import './functions/products';
