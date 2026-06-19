@@ -180,7 +180,7 @@ if (-not $keyVault) {
     Write-Host "Key Vault created." -ForegroundColor Green
     Write-Host ""
 } else {
-    Write-Host "Key Vault found." -ForegroundColor DarkGray
+    Write-Host "Key Vault found." -ForegroundColor Green
     Write-Host ""
 }
 
