@@ -33,6 +33,96 @@ export const messagesRepo = {
     return results;
   },
 
+  // Bounded scan. Table Storage cannot order by timestamp server-side, so the
+  // caller treats this as "recent N" by sorting client-side. Hard cap 500.
+  async list(limit: number, phone?: string): Promise<MessageEntity[]> {
+    const client = getTable(TABLE_MESSAGES);
+    const cap = Math.min(Math.max(limit, 1), 500);
+    const filter = phone ? odata`PartitionKey eq ${normalizePhone(phone)}` : undefined;
+    const results: MessageEntity[] = [];
+    const iter = client.listEntities<MessageEntity>({ queryOptions: { filter } });
+    for await (const row of iter) {
+      results.push(row);
+      if (results.length >= cap) break;
+    }
+    results.sort((a, b) => (b.timestamp ?? '').localeCompare(a.timestamp ?? ''));
+    return results;
+  },
+
+  // Chat-order (oldest first) view of one phone's thread.
+  async listForPhone(phone: string): Promise<MessageEntity[]> {
+    const client = getTable(TABLE_MESSAGES);
+    const results: MessageEntity[] = [];
+    const iter = client.listEntities<MessageEntity>({
+      queryOptions: { filter: odata`PartitionKey eq ${normalizePhone(phone)}` },
+    });
+    for await (const row of iter) results.push(row);
+    results.sort((a, b) => (a.timestamp ?? '').localeCompare(b.timestamp ?? ''));
+    return results;
+  },
+
+  // Mark all inbound rows for one phone as read. Returns the count of rows
+  // actually flipped (already-read rows are skipped so the count is honest).
+  async markAllReadForPhone(phone: string): Promise<number> {
+    const client = getTable(TABLE_MESSAGES);
+    const iter = client.listEntities<MessageEntity>({
+      queryOptions: { filter: odata`PartitionKey eq ${normalizePhone(phone)} and direction eq 'inbound'` },
+    });
+    let updated = 0;
+    for await (const row of iter) {
+      if (row.read === true) continue;
+      await client.upsertEntity({ ...row, read: true }, 'Replace');
+      updated++;
+    }
+    return updated;
+  },
+
+  // Aggregates messages into one row per phone (last message, unread count).
+  // Full-table scan capped at 5000 entries — fine for our volume, would need
+  // a secondary index if traffic grows past that.
+  async aggregateConversations(): Promise<Array<{
+    phone: string;
+    contactName: string;
+    lastMessage: string;
+    lastDirection: 'inbound' | 'outbound';
+    lastTimestamp: string;
+    unreadCount: number;
+  }>> {
+    const client = getTable(TABLE_MESSAGES);
+    const SCAN_CAP = 5000;
+    type Slot = { latest: MessageEntity; unread: number; contactName?: string };
+    const byPhone = new Map<string, Slot>();
+    let scanned = 0;
+    const iter = client.listEntities<MessageEntity>();
+    for await (const m of iter) {
+      scanned++;
+      if (scanned > SCAN_CAP) break;
+      const slot = byPhone.get(m.partitionKey);
+      const isUnreadInbound = m.direction === 'inbound' && m.read !== true;
+      if (!slot) {
+        byPhone.set(m.partitionKey, {
+          latest: m,
+          unread: isUnreadInbound ? 1 : 0,
+          contactName: m.contactName,
+        });
+      } else {
+        if ((m.timestamp ?? '') > (slot.latest.timestamp ?? '')) slot.latest = m;
+        if (isUnreadInbound) slot.unread++;
+        if (!slot.contactName && m.contactName) slot.contactName = m.contactName;
+      }
+    }
+    return Array.from(byPhone.entries())
+      .map(([phone, s]) => ({
+        phone,
+        contactName: s.contactName ?? '',
+        lastMessage: s.latest.body ?? '',
+        lastDirection: s.latest.direction,
+        lastTimestamp: s.latest.timestamp,
+        unreadCount: s.unread,
+      }))
+      .sort((a, b) => (b.lastTimestamp ?? '').localeCompare(a.lastTimestamp ?? ''));
+  },
+
   async updateStatus(row: MessageEntity, status: string, errorDetail?: string): Promise<void> {
     const client = getTable(TABLE_MESSAGES);
     await client.upsertEntity({
@@ -83,6 +173,19 @@ export const contactsRepo = {
       throw err;
     }
   },
+
+  async list(limit: number): Promise<ContactEntity[]> {
+    const client = getTable(TABLE_CONTACTS);
+    const cap = Math.min(Math.max(limit, 1), 500);
+    const results: ContactEntity[] = [];
+    const iter = client.listEntities<ContactEntity>();
+    for await (const row of iter) {
+      results.push(row);
+      if (results.length >= cap) break;
+    }
+    results.sort((a, b) => (b.lastSeenAt ?? '').localeCompare(a.lastSeenAt ?? ''));
+    return results;
+  },
 };
 
 // ─── Templates ──────────────────────────────────────────────────────────────
@@ -99,6 +202,15 @@ export const templatesRepo = {
       if (isNotFound(err)) return null;
       throw err;
     }
+  },
+
+  async list(): Promise<TemplateEntity[]> {
+    const client = getTable(TABLE_TEMPLATES);
+    const results: TemplateEntity[] = [];
+    const iter = client.listEntities<TemplateEntity>();
+    for await (const row of iter) results.push(row);
+    results.sort((a, b) => a.rowKey.localeCompare(b.rowKey));
+    return results;
   },
 };
 

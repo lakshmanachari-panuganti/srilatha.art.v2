@@ -25,8 +25,11 @@ export default function AdminWhatsappPage() {
     });
   }, []);
 
-  const hasError = !!(health?.lastSendError || health?.lastWebhookError || health?.lastVerifyError);
+  const degraded = health?.status === 'degraded';
   const missingConfig = health && Object.values(health.configured).some(v => !v);
+  const brokenTables = health ? Object.entries(health.tables).filter(([, v]) => !v.ok).map(([k]) => k) : [];
+  const brokenQueues = health ? Object.entries(health.queues).filter(([, v]) => !v.ok).map(([k]) => k) : [];
+  const missingCredKeys = health ? Object.entries(health.configured).filter(([, v]) => !v).map(([k]) => k) : [];
 
   return (
     <AdminShell title="WhatsApp">
@@ -36,7 +39,7 @@ export default function AdminWhatsappPage() {
         </div>
       )}
 
-      {health && (hasError || missingConfig) && (
+      {health && (degraded || missingConfig) && (
         <div
           role="button"
           tabIndex={0}
@@ -56,12 +59,12 @@ export default function AdminWhatsappPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--sp-3)' }}>
             <strong>
               {missingConfig
-                ? 'WhatsApp configuration incomplete'
-                : health.lastSendError
-                  ? `WhatsApp send error: ${health.lastSendError}`
-                  : health.lastWebhookError
-                    ? `WhatsApp webhook error: ${health.lastWebhookError}`
-                    : `WhatsApp verify error: ${health.lastVerifyError}`}
+                ? `WhatsApp credentials missing: ${missingCredKeys.join(', ')}`
+                : brokenTables.length > 0
+                  ? `WhatsApp storage tables unreachable: ${brokenTables.join(', ')}`
+                  : brokenQueues.length > 0
+                    ? `WhatsApp queues unreachable: ${brokenQueues.join(', ')}`
+                    : 'WhatsApp service degraded'}
             </strong>
             <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>{healthDetailOpen ? 'Hide details ▴' : 'Show details ▾'}</span>
           </div>

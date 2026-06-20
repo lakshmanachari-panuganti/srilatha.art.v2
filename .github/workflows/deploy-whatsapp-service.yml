@@ -1,32 +1,44 @@
-name: Deploy Backend · PRD
+name: Deploy WhatsApp Service · SHARED
 
+# Single Function App (func-srilathaartwhatsappv2) in rg-srilathaartwhatsappv2-shared
+# serves both environments — the WhatsApp tenant (phone number / WABA) is shared,
+# so there is no dev/prd split for this microservice.
+#
+# Triggers on push to develop or main so the live service tracks the integrated
+# code; PRs only build to catch regressions, no deploy.
 on:
   push:
-    branches: [main]
+    branches:
+      - develop
+      - main
     paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend-prd.yml'
+      - 'whatsapp-service/**'
+      - '.github/workflows/deploy-whatsapp-service.yml'
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'whatsapp-service/**'
   workflow_dispatch:
 
 concurrency:
-  group: deploy-backend-prd
-  cancel-in-progress: false   # never cancel a production deploy mid-flight
+  group: deploy-whatsapp-service
+  cancel-in-progress: false   # never cancel a deploy mid-flight against shared infra
 
 env:
   NODE_VERSION: '22'
-  WORKING_DIRECTORY: backend
-  AZURE_FUNCTIONAPP_NAME: func-srilathaartv2-prd
-  AZURE_RESOURCE_GROUP: rg-srilathaartv2-prd
+  WORKING_DIRECTORY: whatsapp-service
+  AZURE_FUNCTIONAPP_NAME: func-srilathaartwhatsappv2
+  AZURE_RESOURCE_GROUP: rg-srilathaartwhatsappv2-shared
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy Backend - Prd
+    name: Build & Deploy WhatsApp Service
     runs-on: ubuntu-latest
-    environment:
-      name: production        # requires manual approval if configured in GitHub
     permissions:
       contents: read
-      id-token: write         # required for OIDC token exchange with Azure
+      id-token: write   # required for OIDC token exchange with Azure
 
     steps:
       - name: Checkout
@@ -40,7 +52,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: whatsapp-service/package-lock.json
 
       - name: Install dependencies
         working-directory: ${{ env.WORKING_DIRECTORY }}
@@ -57,18 +69,21 @@ jobs:
           npm run build
           npm prune --omit=dev
 
-      - name: Package backend as zip
+      - name: Package service as zip
+        if: github.event_name != 'pull_request'
         working-directory: ${{ env.WORKING_DIRECTORY }}
         run: zip -r -q "$RUNNER_TEMP/deploy.zip" . -x ".git/*" ".github/*" "src/*" "*.ts" "tsconfig.json"
 
       - name: Azure login (OIDC)
+        if: github.event_name != 'pull_request'
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID_PRD }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID_WHATSAPP }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Functions
+        if: github.event_name != 'pull_request'
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}

@@ -4,3 +4,8 @@ import './functions/webhooks-whatsapp';
 import './functions/messages-send';
 import './functions/process-inbound';
 import './functions/process-outbound';
+import './functions/health';
+import './functions/templates-api';
+import './functions/contacts-api';
+import './functions/messages-api';
+import './functions/conversations-api';
