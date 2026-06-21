@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { queryEntitiesAll, queryEntities } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
@@ -44,7 +45,7 @@ interface WhatsappHealthEntity {
 
 async function adminGetStats(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -117,4 +118,4 @@ async function adminGetStats(request: HttpRequest, context: InvocationContext): 
   }
 }
 
-app.http('adminGetStats', { route: 'mgmt/stats', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetStats });
+app.http('adminGetStats', { route: 'mgmt/stats', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminGetStats) });

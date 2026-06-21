@@ -1,8 +1,11 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { getTableClient, upsertEntity, queryEntities, deleteEntity, getEntity } from '../utils/tableStorage';
 import { computeCouponDiscount, getCouponByCode } from './coupons';
+import { verifyCustomerToken } from './customerAuth';
 import { sendEmail } from '../utils/email';
 import { renderOrderConfirmation } from '../templates/emailTemplates';
 import { STORE_CONTACT_NUMBER } from './whatsapp';
@@ -97,6 +100,47 @@ interface OrderEntity {
   [key: string]: unknown;
 }
 
+interface ProductEntity {
+  partitionKey: string;
+  rowKey: string;
+  name: string;
+  price: number;     // paise — authoritative
+  active?: boolean;
+  inStock?: boolean;
+  [key: string]: unknown;
+}
+
+const MAX_ITEMS_PER_ORDER = 50;
+const MAX_QTY_PER_ITEM = 99;
+
+// TTL for the per-order session token returned from createOrder and required
+// by verifyPayment. 1 hour is more than enough for the user to complete the
+// Razorpay flow and well under the order's pending-cleanup window.
+const ORDER_TOKEN_TTL_SECONDS = 60 * 60;
+const ORDER_TOKEN_PURPOSE = 'order-session';
+
+interface OrderTokenClaims {
+  purpose: typeof ORDER_TOKEN_PURPOSE;
+  orderId: string;
+  razorpayOrderId: string;
+}
+
+/**
+ * Look up the catalog product by id (RowKey). Cross-partition because the
+ * products table partitions by category, which the client doesn't send.
+ * Returns null if missing or soft-deleted (`active === false`).
+ */
+async function findProductById(productId: string): Promise<ProductEntity | null> {
+  const results = await queryEntities<ProductEntity>(
+    'products',
+    odata`RowKey eq ${productId}`,
+  );
+  const product = results?.[0];
+  if (!product) return null;
+  if (product.active === false) return null;
+  return product;
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/orders  – create order & Razorpay order
 // ---------------------------------------------------------------------------
@@ -120,9 +164,49 @@ async function createOrder(
     if (!items?.length || !customer || !address) {
       return json({ error: 'items, customer and address are required' }, 400);
     }
+    if (items.length > MAX_ITEMS_PER_ORDER) {
+      return json({ error: `Too many items (max ${MAX_ITEMS_PER_ORDER}).` }, 400);
+    }
 
-    // Calculate amounts (paise) — server is the source of truth.
-    const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+    // Resolve each item against the catalog. The client-supplied `price` and
+    // `name` fields are IGNORED — taking them on trust let an attacker
+    // submit an order with `price: 100` (₹1 in paise) and pay ₹1 for any
+    // product. Quantities are also clamped server-side.
+    const resolved: OrderItem[] = [];
+    for (const raw of items) {
+      const productId = String(raw?.productId ?? '').trim();
+      if (!productId) {
+        return json({ error: 'Each item must include a productId.' }, 400);
+      }
+      const qtyRaw = Number(raw?.qty);
+      if (!Number.isFinite(qtyRaw) || qtyRaw < 1) {
+        return json({ error: `Invalid quantity for item ${productId}.` }, 400);
+      }
+      const qty = Math.min(MAX_QTY_PER_ITEM, Math.max(1, Math.floor(qtyRaw)));
+
+      const product = await findProductById(productId);
+      if (!product) {
+        return json(
+          { error: `Product ${productId} is unavailable. Please refresh your cart.` },
+          400,
+        );
+      }
+      const price = Number(product.price);
+      if (!Number.isFinite(price) || price < 0) {
+        context.error(`Product ${productId} has invalid price ${product.price}`);
+        return json({ error: 'Catalog data error. Please try again later.' }, 500);
+      }
+
+      resolved.push({
+        productId,
+        name: String(product.name ?? ''),
+        qty,
+        price,
+      });
+    }
+
+    // Calculate amounts (paise) from server-resolved prices only.
+    const subtotal = resolved.reduce((sum, item) => sum + item.qty * item.price, 0);
     let shipping = subtotal >= FREE_SHIPPING_THRESHOLD_PAISE ? 0 : SHIPPING_COST_PAISE;
     let discount = 0;
     let appliedCouponCode: string | undefined;
@@ -189,9 +273,10 @@ async function createOrder(
     };
     await upsertEntity('orders', orderEntity);
 
-    // Save order items to Table Storage
+    // Save order items to Table Storage using server-resolved values, so the
+    // persisted record matches what was actually charged.
     await Promise.all(
-      items.map((item, index) =>
+      resolved.map((item, index) =>
         upsertEntity('orderItems', {
           partitionKey: orderId,
           rowKey: `${item.productId}-${index}`,
@@ -201,6 +286,21 @@ async function createOrder(
           price: item.price,
         }),
       ),
+    );
+
+    // Mint a short-lived signed session token. The frontend must echo it back
+    // to verifyPayment, where the server checks that the token's orderId +
+    // razorpayOrderId match the request. This is what gates an anonymous
+    // caller from flipping arbitrary orders to 'confirmed': they would need a
+    // token issued for that specific order.
+    const orderToken = jwt.sign(
+      {
+        purpose: ORDER_TOKEN_PURPOSE,
+        orderId,
+        razorpayOrderId,
+      } satisfies OrderTokenClaims,
+      JWT_SECRET,
+      { expiresIn: ORDER_TOKEN_TTL_SECONDS },
     );
 
     return json({
@@ -213,6 +313,8 @@ async function createOrder(
       appliedCouponCode: appliedCouponCode ?? null,
       currency: 'INR',
       key: RAZORPAY_KEY_ID,
+      orderToken,
+      orderTokenExpiresIn: ORDER_TOKEN_TTL_SECONDS,
     });
   } catch (err) {
     context.error('createOrder error', err);
@@ -238,11 +340,14 @@ async function getOrder(
       return json({ error: 'Authorization header missing or malformed' }, 401);
     }
 
-    try {
-      jwt.verify(token, JWT_SECRET);
-    } catch {
+    // verifyCustomerToken checks the signature, algorithm, expiry, AND
+    // the server-side tokenVersion — so a logged-out / password-changed
+    // token is rejected even before its natural expiry.
+    const verified = await verifyCustomerToken(token);
+    if (!verified) {
       return json({ error: 'Invalid or expired token' }, 401);
     }
+    const callerEmail = verified.claims.email.toLowerCase();
 
     const orderId = request.params.orderId;
     if (!orderId) {
@@ -253,7 +358,7 @@ async function getOrder(
     let orderEntity: OrderEntity | null = null;
 
     for (const status of ORDER_STATUSES) {
-      const filter = `PartitionKey eq '${status}' and RowKey eq '${orderId}'`;
+      const filter = odata`PartitionKey eq ${status} and RowKey eq ${orderId}`;
       const results = await queryEntities<OrderEntity>('orders', filter);
       if (results && results.length > 0) {
         orderEntity = results[0];
@@ -265,8 +370,16 @@ async function getOrder(
       return json({ error: 'Order not found' }, 404);
     }
 
+    // Object-level authorization: a customer may only read their own orders.
+    // Mismatched callers get 404 (not 403) to avoid confirming the order exists.
+    const ownerEmail =
+      (safeJsonParse(orderEntity.customer) as { email?: string } | null)?.email?.toLowerCase();
+    if (!ownerEmail || ownerEmail !== callerEmail) {
+      return json({ error: 'Order not found' }, 404);
+    }
+
     // Fetch order items
-    const itemsFilter = `PartitionKey eq '${orderId}'`;
+    const itemsFilter = odata`PartitionKey eq ${orderId}`;
     const items = await queryEntities('orderItems', itemsFilter);
 
     return json({
@@ -295,6 +408,31 @@ async function verifyPayment(
       return json({ error: 'orderId is required' }, 400);
     }
 
+    // Caller proof of possession: the order session token minted at
+    // createOrder time. Guest checkout has no customer JWT, so this is what
+    // ties verify-payment to a specific order — without it, a valid Razorpay
+    // signature from an attacker's own payment could be replayed against a
+    // victim's orderId.
+    const authHeader = request.headers.get('Authorization') ?? '';
+    const orderToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!orderToken) {
+      return json({ error: 'Order session token required.' }, 401);
+    }
+    let tokenClaims: OrderTokenClaims;
+    try {
+      tokenClaims = jwt.verify(orderToken, JWT_SECRET, {
+        algorithms: ['HS256'],
+      }) as OrderTokenClaims;
+    } catch {
+      return json({ error: 'Order session expired. Please retry checkout.' }, 401);
+    }
+    if (
+      tokenClaims?.purpose !== ORDER_TOKEN_PURPOSE ||
+      tokenClaims.orderId !== orderId
+    ) {
+      return json({ error: 'Order session token does not match this order.' }, 401);
+    }
+
     const body = (await request.json()) as {
       razorpayOrderId: string;
       razorpayPaymentId: string;
@@ -309,22 +447,18 @@ async function verifyPayment(
         400,
       );
     }
-
-    // Verify HMAC-SHA256 signature
-    const expectedSignature = crypto
-      .createHmac('sha256', RAZORPAY_KEY_SECRET)
-      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-      .digest('hex');
-
-    if (expectedSignature !== razorpaySignature) {
-      return json({ error: 'Invalid payment signature' }, 400);
+    // The token's razorpayOrderId is the server-of-record from createOrder.
+    // The body's razorpayOrderId must also match. We check the token first so
+    // an attacker can't substitute a stale token from a different order.
+    if (tokenClaims.razorpayOrderId !== razorpayOrderId) {
+      return json({ error: 'Order/payment mismatch' }, 400);
     }
 
     // Find the order in 'pending' partition first, then others
     let orderEntity: OrderEntity | null = null;
 
     for (const status of ORDER_STATUSES) {
-      const filter = `PartitionKey eq '${status}' and RowKey eq '${orderId}'`;
+      const filter = odata`PartitionKey eq ${status} and RowKey eq ${orderId}`;
       const results = await queryEntities<OrderEntity>('orders', filter);
       if (results && results.length > 0) {
         orderEntity = results[0];
@@ -334,6 +468,28 @@ async function verifyPayment(
 
     if (!orderEntity) {
       return json({ error: 'Order not found' }, 404);
+    }
+
+    // Bind the signed razorpayOrderId to the order being confirmed. Without
+    // this check, a valid signature from a *different* (cheap) payment could
+    // be replayed to flip a victim's order to 'confirmed'.
+    if (orderEntity.razorpayOrderId !== razorpayOrderId) {
+      return json({ error: 'Order/payment mismatch' }, 400);
+    }
+
+    // Verify HMAC-SHA256 signature with timing-safe compare.
+    const expectedSignature = crypto
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    const sigBufA = Buffer.from(expectedSignature, 'hex');
+    const sigBufB = Buffer.from(razorpaySignature, 'hex');
+    if (
+      sigBufA.length !== sigBufB.length ||
+      !crypto.timingSafeEqual(sigBufA, sigBufB)
+    ) {
+      return json({ error: 'Invalid payment signature' }, 400);
     }
 
     const previousStatus = orderEntity.partitionKey;
@@ -381,7 +537,7 @@ async function verifyPayment(
     if (emailTo) {
       const items = await queryEntities<{ name: string; qty: number; price: number }>(
         'orderItems',
-        `PartitionKey eq '${orderId}'`,
+        odata`PartitionKey eq ${orderId}`,
       );
       const itemsList =
         items?.map((i) => `  • ${i.name} × ${i.qty} — ₹${(i.price / 100).toLocaleString('en-IN')}`).join('\n') ?? '';
@@ -461,19 +617,19 @@ app.http('createOrder', {
   route: 'orders',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: createOrder,
+  handler: wrapCors(createOrder),
 });
 
 app.http('getOrder', {
   route: 'orders/{orderId}',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: getOrder,
+  handler: wrapCors(getOrder),
 });
 
 app.http('verifyPayment', {
   route: 'orders/{orderId}/verify-payment',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: verifyPayment,
+  handler: wrapCors(verifyPayment),
 });

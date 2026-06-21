@@ -16,6 +16,11 @@ export interface CustomerEntity {
   googleSub?: string;
   createdAt: string;
   lastLoginAt?: string;
+  // Bumped on logout / password change. The JWT carries a matching `ver`
+  // claim; verifyCustomerClaims rejects tokens whose `ver` is behind. This
+  // is the revocation lever — a single integer change invalidates every
+  // outstanding token for that user. Default 0 if missing on legacy rows.
+  tokenVersion?: number;
 }
 
 interface PhoneIndexEntity {
@@ -153,7 +158,23 @@ export async function updateLastLogin(email: string): Promise<void> {
 export async function setPasswordHash(email: string, passwordHash: string): Promise<void> {
   const c = await findCustomerByEmail(email);
   if (!c) throw new Error('Customer not found');
-  await upsertEntity(CUSTOMERS, { ...c, passwordHash });
+  // Password change invalidates all outstanding sessions: same lever as
+  // logout, but the operator/user has clearly intended to revoke.
+  const nextVersion = (c.tokenVersion ?? 0) + 1;
+  await upsertEntity(CUSTOMERS, { ...c, passwordHash, tokenVersion: nextVersion });
+}
+
+/**
+ * Increment the customer's `tokenVersion`, which invalidates every JWT
+ * outstanding for that account. Used by /api/auth/logout. Returns the new
+ * version, or null if the customer no longer exists.
+ */
+export async function bumpCustomerTokenVersion(email: string): Promise<number | null> {
+  const c = await findCustomerByEmail(email);
+  if (!c) return null;
+  const nextVersion = (c.tokenVersion ?? 0) + 1;
+  await upsertEntity(CUSTOMERS, { ...c, tokenVersion: nextVersion });
+  return nextVersion;
 }
 
 // Useful in tests; not used by any handler.

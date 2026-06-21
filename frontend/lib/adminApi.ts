@@ -82,6 +82,10 @@ export const adminApi = {
     request<AdminLoginResponse>('/mgmt/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   setup: (input: { email: string; password: string; name: string; setupToken: string }) =>
     request<{ success: true; email: string }>('/mgmt/setup', { method: 'POST', body: JSON.stringify(input) }),
+  // Server-side sign-out: bumps the admin's tokenVersion so every JWT
+  // outstanding for this account is rejected on subsequent calls. Caller
+  // should still clear local state regardless of the response.
+  logout: () => request<{ success: true }>('/mgmt/logout', { method: 'POST' }),
 
   // Stats
   stats: () => request<{

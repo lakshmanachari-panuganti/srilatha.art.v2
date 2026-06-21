@@ -1,7 +1,10 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { getEntity, queryEntitiesAll, upsertEntity } from '../utils/tableStorage';
+import { clientIp, enforceRateLimit } from '../utils/rateLimit';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +14,11 @@ const CORS_HEADERS: Record<string, string> = {
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 const TOKEN_TTL_SECONDS = 60 * 60 * 12; // 12 hours
+
+// A valid-but-unmatchable bcrypt hash. Used to keep response time constant
+// when an account doesn't exist, so login timing can't enumerate which
+// emails are registered.
+const DUMMY_BCRYPT_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8.4j9q1eY/JlZkPJrW8/2yJqL8nKpW';
 
 function json(body: unknown, status = 200): HttpResponseInit {
   return {
@@ -24,7 +32,7 @@ function options(): HttpResponseInit {
   return { status: 204, headers: CORS_HEADERS };
 }
 
-interface AdminEntity {
+export interface AdminEntity {
   partitionKey: string;       // 'admin'
   rowKey: string;             // lowercase email
   email: string;
@@ -38,6 +46,21 @@ interface AdminEntity {
   isActive?: boolean;
   createdAt: string;
   lastLoginAt?: string;
+  // Revocation lever. Bumped by adminLogout to invalidate any outstanding
+  // tokens for this admin. The verify path checks `claims.ver` against this.
+  tokenVersion?: number;
+}
+
+export async function loadAdmin(email: string): Promise<AdminEntity | null> {
+  return getEntity<AdminEntity>('admins', 'admin', email);
+}
+
+export async function bumpAdminTokenVersion(email: string): Promise<number | null> {
+  const admin = await getEntity<AdminEntity>('admins', 'admin', email);
+  if (!admin) return null;
+  const nextVersion = (admin.tokenVersion ?? 0) + 1;
+  await upsertEntity('admins', { ...admin, tokenVersion: nextVersion });
+  return nextVersion;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,8 +135,33 @@ async function adminLogin(
     }
     const email = body.email.toLowerCase().trim();
 
+    // Rate-limit by IP (broad anti-brute-force) and by email (anti-targeted).
+    // Generous thresholds so a normal user never hits them.
+    const ip = clientIp(request);
+    const ipBlocked = await enforceRateLimit({
+      scope: 'admin-login:ip',
+      key: ip,
+      max: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (ipBlocked) {
+      return { ...ipBlocked, headers: { ...CORS_HEADERS, ...(ipBlocked.headers ?? {}) } };
+    }
+    const emailBlocked = await enforceRateLimit({
+      scope: 'admin-login:email',
+      key: email,
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (emailBlocked) {
+      return { ...emailBlocked, headers: { ...CORS_HEADERS, ...(emailBlocked.headers ?? {}) } };
+    }
+
     const admin = await getEntity<AdminEntity>('admins', 'admin', email);
     if (!admin) {
+      // Run a dummy compare so timing matches the real-account path and
+      // unknown emails can't be enumerated by response latency.
+      await bcrypt.compare(body.password, DUMMY_BCRYPT_HASH);
       return json({ error: 'Invalid email or password' }, 401);
     }
     // Accept either `active` or `isActive` (operator-bootstrapped rows use isActive).
@@ -128,7 +176,16 @@ async function adminLogin(
     }
 
     const token = jwt.sign(
-      { sub: email, name: admin.name, role: admin.role },
+      {
+        sub: email,
+        name: admin.name,
+        role: admin.role,
+        // Revocation lever, in sync with the customer-side pattern. Bumped
+        // by adminLogout and password resets; the verify path rejects
+        // tokens whose `ver` is behind.
+        ver: admin.tokenVersion ?? 0,
+        jti: randomUUID(),
+      },
       JWT_SECRET,
       { expiresIn: TOKEN_TTL_SECONDS },
     );
@@ -157,6 +214,24 @@ async function adminLogout(
   _context: InvocationContext,
 ): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
+  const auth = request.headers.get('Authorization') ?? '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token || !JWT_SECRET) return json({ success: true });
+
+  // ignoreExpiration so logging out after the session aged out still
+  // bumps the version (defence in depth — the old token can't be
+  // refreshed anyway, but operators expect logout to be authoritative).
+  try {
+    const claims = jwt.verify(token, JWT_SECRET, {
+      algorithms: ['HS256'],
+      ignoreExpiration: true,
+    }) as { sub?: string };
+    if (claims?.sub) {
+      await bumpAdminTokenVersion(claims.sub);
+    }
+  } catch {
+    // unrecognised / forged token — ignore, still return 200
+  }
   return json({ success: true });
 }
 
@@ -168,19 +243,19 @@ app.http('adminSetup', {
   route: 'mgmt/setup',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminSetup,
+  handler: wrapCors(adminSetup),
 });
 
 app.http('adminLogin', {
   route: 'mgmt/login',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminLogin,
+  handler: wrapCors(adminLogin),
 });
 
 app.http('adminLogout', {
   route: 'mgmt/logout',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminLogout,
+  handler: wrapCors(adminLogout),
 });

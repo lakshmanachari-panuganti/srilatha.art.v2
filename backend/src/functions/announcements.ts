@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { v4 as uuidv4 } from 'uuid';
 import { getEntity, queryEntitiesAll, upsertEntity, deleteEntity } from '../utils/tableStorage';
@@ -68,7 +69,7 @@ async function getPublicAnnouncements(request: HttpRequest, context: InvocationC
 
 async function adminListAnnouncements(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const all = await queryEntitiesAll<AnnouncementEntity>('config');
@@ -81,7 +82,7 @@ async function adminListAnnouncements(request: HttpRequest, context: InvocationC
 
 async function adminCreateAnnouncement(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const body = (await request.json()) as Partial<AnnouncementEntity>;
@@ -111,7 +112,7 @@ async function adminCreateAnnouncement(request: HttpRequest, context: Invocation
 
 async function adminUpdateAnnouncement(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const id = request.params.id;
@@ -130,7 +131,7 @@ async function adminUpdateAnnouncement(request: HttpRequest, context: Invocation
 
 async function adminDeleteAnnouncement(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const id = request.params.id;
@@ -143,9 +144,9 @@ async function adminDeleteAnnouncement(request: HttpRequest, context: Invocation
   }
 }
 
-app.http('getPublicAnnouncements',  { route: 'announcements',          methods: ['GET', 'OPTIONS'],  authLevel: 'anonymous', handler: getPublicAnnouncements });
+app.http('getPublicAnnouncements',  { route: 'announcements',          methods: ['GET', 'OPTIONS'],  authLevel: 'anonymous', handler: wrapCors(getPublicAnnouncements) });
 // OPTIONS lives only on the first handler per route — see comment in productAdmin.ts.
-app.http('adminListAnnouncements',  { route: 'mgmt/announcements',     methods: ['GET', 'OPTIONS'],  authLevel: 'anonymous', handler: adminListAnnouncements });
-app.http('adminCreateAnnouncement', { route: 'mgmt/announcements',     methods: ['POST'],            authLevel: 'anonymous', handler: adminCreateAnnouncement });
-app.http('adminUpdateAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateAnnouncement });
-app.http('adminDeleteAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['DELETE'],         authLevel: 'anonymous', handler: adminDeleteAnnouncement });
+app.http('adminListAnnouncements',  { route: 'mgmt/announcements',     methods: ['GET', 'OPTIONS'],  authLevel: 'anonymous', handler: wrapCors(adminListAnnouncements) });
+app.http('adminCreateAnnouncement', { route: 'mgmt/announcements',     methods: ['POST'],            authLevel: 'anonymous', handler: wrapCors(adminCreateAnnouncement) });
+app.http('adminUpdateAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminUpdateAnnouncement) });
+app.http('adminDeleteAnnouncement', { route: 'mgmt/announcements/{id}', methods: ['DELETE'],         authLevel: 'anonymous', handler: wrapCors(adminDeleteAnnouncement) });

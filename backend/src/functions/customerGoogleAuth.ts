@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { upsertCustomer } from '../utils/customerStore';
 import { isValidEmail, normalizeEmail } from '../utils/identifiers';
@@ -24,24 +25,60 @@ function options(): HttpResponseInit {
 interface GoogleUserInfo {
   sub?: string;
   email?: string;
-  email_verified?: boolean;
+  email_verified?: boolean | string;
   name?: string;
   picture?: string;
 }
 
-async function verifyGoogleAccessToken(accessToken: string): Promise<GoogleUserInfo | null> {
+interface GoogleTokenInfo {
+  aud?: string;
+  scope?: string;
+  expires_in?: string | number;
+  email?: string;
+  email_verified?: boolean | string;
+}
+
+/**
+ * Verify a Google OAuth2 access token by hitting BOTH endpoints:
+ *
+ *   1. `tokeninfo` confirms the token is live AND was minted for this app's
+ *      OAuth client id (the `aud` claim). Without this check, an access
+ *      token minted for ANY other Google OAuth app could be replayed here —
+ *      the classic OAuth confused-deputy.
+ *   2. `userinfo` returns the profile (email, name, picture).
+ *
+ * Both are required; either failing fails the whole verification.
+ */
+async function verifyGoogleAccessToken(
+  accessToken: string,
+  expectedClientId: string,
+): Promise<GoogleUserInfo | null> {
   try {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as GoogleUserInfo;
+    const [tokenRes, userRes] = await Promise.all([
+      fetch(
+        `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+      ),
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    ]);
+    if (!tokenRes.ok || !userRes.ok) return null;
+
+    const tokenInfo = (await tokenRes.json()) as GoogleTokenInfo;
+    if (!tokenInfo.aud || tokenInfo.aud !== expectedClientId) return null;
+
+    return (await userRes.json()) as GoogleUserInfo;
   } catch {
     return null;
   }
 }
 
-// POST /api/auth/google   { accessToken } or { profile: { email, name, picture, sub } }
+// POST /api/auth/google   { accessToken, mobile? }
+//
+// The legacy `{ profile: { email, ... } }` branch is intentionally gone —
+// it accepted a client-supplied identity with no verification (anyone could
+// mint a session for any email). Only access tokens verified against
+// Google with an audience check are accepted now.
 async function customerGoogleAuth(
   request: HttpRequest,
   context: InvocationContext,
@@ -50,23 +87,30 @@ async function customerGoogleAuth(
   if (!process.env.JWT_SECRET) {
     return json({ error: 'Server misconfigured: JWT_SECRET missing' }, 500);
   }
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? '';
+  if (!GOOGLE_CLIENT_ID) {
+    return json({ error: 'Server misconfigured: GOOGLE_CLIENT_ID missing' }, 500);
+  }
 
   try {
     const body = (await request.json()) as {
       accessToken?: string;
-      profile?: GoogleUserInfo;
       mobile?: string;
     };
 
-    let profile: GoogleUserInfo | null = null;
-    if (body.accessToken) {
-      profile = await verifyGoogleAccessToken(body.accessToken);
-    } else if (body.profile?.email) {
-      profile = body.profile;
+    if (!body.accessToken) {
+      return json({ error: 'Missing Google access token.' }, 400);
     }
+    const profile = await verifyGoogleAccessToken(body.accessToken, GOOGLE_CLIENT_ID);
 
     if (!profile?.email) {
       return json({ error: 'Could not verify Google account.' }, 401);
+    }
+    // Google sometimes returns the boolean as a string ("true"/"false").
+    const emailVerified =
+      profile.email_verified === true || profile.email_verified === 'true';
+    if (!emailVerified) {
+      return json({ error: 'Google account email is not verified.' }, 401);
     }
     const email = normalizeEmail(profile.email);
     if (!isValidEmail(email)) {
@@ -109,5 +153,5 @@ app.http('customerGoogleAuth', {
   route: 'auth/google',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: customerGoogleAuth,
+  handler: wrapCors(customerGoogleAuth),
 });

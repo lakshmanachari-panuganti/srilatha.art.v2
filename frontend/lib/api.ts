@@ -117,6 +117,33 @@ export function authGoogle(input: {
   });
 }
 
+/**
+ * Mint a fresh session token from the current one. The backend accepts
+ * tokens that are still valid OR recently expired (within ~7d grace), so a
+ * user returning after a few days idle stays signed in. After ~7d the
+ * refresh fails and the user must re-authenticate.
+ */
+export function authRefresh(token: string) {
+  return request<AuthResponse>('/auth/refresh', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/**
+ * Server-side sign-out: bumps the user's tokenVersion so every outstanding
+ * JWT for that account is immediately invalidated (defends against a
+ * previously stolen token still being valid until its natural expiry).
+ * Best-effort — the client should still clear local state regardless of
+ * the response.
+ */
+export function authLogout(token: string) {
+  return fetch(`${API_BASE}/auth/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => undefined);
+}
+
 export function forgotPasswordRequest(input: { phone: string }) {
   return request<{
     ok: true;
@@ -215,6 +242,11 @@ export interface CreateOrderResponse {
   appliedCouponCode: string | null;
   currency: 'INR';
   key: string;
+  // Short-lived signed session token. Must be echoed back to verifyPayment
+  // (in the Authorization header) to bind that call to this order — closes
+  // the payment-replay path for guest checkout, which has no customer JWT.
+  orderToken: string;
+  orderTokenExpiresIn: number; // seconds
 }
 
 export function createOrder(input: CreateOrderInput) {
@@ -239,11 +271,16 @@ export interface VerifyPaymentResponse {
   emailErrorReason?: 'not-configured' | 'smtp-error';
 }
 
-export function verifyPayment(orderId: string, input: VerifyPaymentInput) {
+export function verifyPayment(
+  orderId: string,
+  input: VerifyPaymentInput,
+  orderToken: string,
+) {
   return request<VerifyPaymentResponse>(
     `/orders/${encodeURIComponent(orderId)}/verify-payment`,
     {
       method: 'POST',
+      headers: { Authorization: `Bearer ${orderToken}` },
       body: JSON.stringify(input),
     },
   );

@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { renderTemplate } from '../templates/whatsappTemplates';
 
@@ -199,5 +200,5 @@ app.http('whatsappSend', {
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   route: 'whatsapp/send',
-  handler: httpSendWhatsApp,
+  handler: wrapCors(httpSendWhatsApp),
 });

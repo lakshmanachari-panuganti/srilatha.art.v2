@@ -1,4 +1,6 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { queryEntities, queryEntitiesAll, upsertEntity, deleteEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
@@ -57,7 +59,7 @@ function toApi(entity: OrderEntity) {
 
 async function adminListOrders(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -68,7 +70,7 @@ async function adminListOrders(request: HttpRequest, context: InvocationContext)
 
     let all: OrderEntity[];
     if (statusFilter) {
-      all = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${statusFilter}'`);
+      all = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${statusFilter}`);
     } else {
       all = await queryEntitiesAll<OrderEntity>('orders');
     }
@@ -106,7 +108,7 @@ async function adminListOrders(request: HttpRequest, context: InvocationContext)
 
 async function adminGetOrder(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -115,13 +117,13 @@ async function adminGetOrder(request: HttpRequest, context: InvocationContext): 
 
     let entity: OrderEntity | null = null;
     for (const s of ORDER_STATUSES) {
-      const r = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+      const r = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
       if (r.length) { entity = r[0]; break; }
     }
     if (!entity) return json({ error: 'Order not found' }, 404);
 
-    const items = await queryEntities('orderItems', `PartitionKey eq '${id}'`);
-    const events = await queryEntities('orderEvents', `PartitionKey eq '${id}'`);
+    const items = await queryEntities('orderItems', odata`PartitionKey eq ${id}`);
+    const events = await queryEntities('orderEvents', odata`PartitionKey eq ${id}`);
 
     return json({ ...toApi(entity), items, events });
   } catch (err) {
@@ -136,7 +138,7 @@ async function adminGetOrder(request: HttpRequest, context: InvocationContext): 
 
 async function adminUpdateStatus(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -151,7 +153,7 @@ async function adminUpdateStatus(request: HttpRequest, context: InvocationContex
     let entity: OrderEntity | null = null;
     let oldStatus: OrderStatus | null = null;
     for (const s of ORDER_STATUSES) {
-      const r = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+      const r = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
       if (r.length) { entity = r[0]; oldStatus = s; break; }
     }
     if (!entity || !oldStatus) return json({ error: 'Order not found' }, 404);
@@ -194,7 +196,7 @@ async function adminUpdateStatus(request: HttpRequest, context: InvocationContex
 
 async function adminAddNote(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -225,7 +227,7 @@ async function adminAddNote(request: HttpRequest, context: InvocationContext): P
 
 async function adminBulkStatus(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -241,7 +243,7 @@ async function adminBulkStatus(request: HttpRequest, context: InvocationContext)
         let entity: OrderEntity | null = null;
         let oldStatus: OrderStatus | null = null;
         for (const s of ORDER_STATUSES) {
-          const r = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+          const r = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
           if (r.length) { entity = r[0]; oldStatus = s; break; }
         }
         if (!entity || !oldStatus) {
@@ -277,33 +279,33 @@ app.http('adminListOrders', {
   route: 'mgmt/orders',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminListOrders,
+  handler: wrapCors(adminListOrders),
 });
 
 app.http('adminGetOrder', {
   route: 'mgmt/orders/{id}',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminGetOrder,
+  handler: wrapCors(adminGetOrder),
 });
 
 app.http('adminUpdateStatus', {
   route: 'mgmt/orders/{id}/status',
   methods: ['PATCH', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminUpdateStatus,
+  handler: wrapCors(adminUpdateStatus),
 });
 
 app.http('adminAddNote', {
   route: 'mgmt/orders/{id}/notes',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminAddNote,
+  handler: wrapCors(adminAddNote),
 });
 
 app.http('adminBulkStatus', {
   route: 'mgmt/orders/bulk-status',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminBulkStatus,
+  handler: wrapCors(adminBulkStatus),
 });

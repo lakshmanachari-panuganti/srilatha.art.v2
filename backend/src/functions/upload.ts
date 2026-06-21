@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { randomUUID } from 'crypto';
 import { uploadBlob } from '../utils/blobStorage';
@@ -46,7 +47,7 @@ function detectImage(buf: Buffer): DetectedImage | null {
 // POST /api/mgmt/upload — multipart/form-data with field name "file"
 async function adminUpload(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -79,5 +80,5 @@ app.http('adminUpload', {
   route: 'mgmt/upload',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminUpload,
+  handler: wrapCors(adminUpload),
 });

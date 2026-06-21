@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 
 const CORS_HEADERS: Record<string, string> = {
@@ -42,5 +43,5 @@ app.http('getPublicConfig', {
   route: 'config/public',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: getPublicConfig,
+  handler: wrapCors(getPublicConfig),
 });

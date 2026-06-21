@@ -1,7 +1,10 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import { queryEntities, queryEntitiesAll, upsertEntity } from '../utils/tableStorage';
+import { verifyCustomerToken } from './customerAuth';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -23,24 +26,15 @@ function options(): HttpResponseInit {
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 const ELIGIBLE_ORDER_STATUSES = ['delivered', 'shipped', 'confirmed'];
 
-interface CustomerJwtPayload {
-  sub: string;
-  email: string;
-  name?: string;
-}
-
-function readCustomerClaims(request: HttpRequest): CustomerJwtPayload | null {
-  if (!JWT_SECRET) return null;
+async function readCustomerClaims(
+  request: HttpRequest,
+): Promise<{ email: string; name?: string } | null> {
   const auth = request.headers.get('Authorization') ?? '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (!token) return null;
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET) as CustomerJwtPayload;
-    if (!decoded?.email) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
+  const verified = await verifyCustomerToken(token);
+  if (!verified) return null;
+  return { email: verified.claims.email, name: verified.claims.name };
 }
 
 interface ReviewEntity {
@@ -97,10 +91,9 @@ async function listPublicReviews(
   if (request.method === 'OPTIONS') return options();
   try {
     const productId = request.query.get('productId');
-    const baseFilter = `PartitionKey eq 'approved'`;
     const filter = productId
-      ? `${baseFilter} and productId eq '${productId.replace(/'/g, "''")}'`
-      : baseFilter;
+      ? odata`PartitionKey eq 'approved' and productId eq ${productId}`
+      : odata`PartitionKey eq 'approved'`;
     const rows = await queryEntities<ReviewEntity>('reviews', filter);
     rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
     return json({ reviews: rows.map(publicReview), total: rows.length });
@@ -132,7 +125,7 @@ async function hasPurchasedProduct(email: string, productId: string): Promise<bo
   for (const order of eligibleOrders) {
     const items = await queryEntities<OrderItemEntity>(
       'orderItems',
-      `PartitionKey eq '${order.rowKey.replace(/'/g, "''")}'`,
+      odata`PartitionKey eq ${order.rowKey}`,
     );
     if (items.some((it) => it.productId === productId)) return true;
   }
@@ -146,7 +139,7 @@ async function submitReview(
   if (request.method === 'OPTIONS') return options();
   if (!JWT_SECRET) return json({ error: 'Server misconfigured: JWT_SECRET missing' }, 500);
 
-  const claims = readCustomerClaims(request);
+  const claims = await readCustomerClaims(request);
   if (!claims) return json({ error: 'Please sign in to leave a review.' }, 401);
 
   try {
@@ -220,11 +213,11 @@ app.http('listPublicReviews', {
   route: 'reviews',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: listPublicReviews,
+  handler: wrapCors(listPublicReviews),
 });
 app.http('submitReview', {
   route: 'reviews',
   methods: ['POST'],
   authLevel: 'anonymous',
-  handler: submitReview,
+  handler: wrapCors(submitReview),
 });

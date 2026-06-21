@@ -1,4 +1,6 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { getEntity, queryEntitiesAll, queryEntities, upsertEntity, deleteEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
@@ -51,7 +53,7 @@ function toApi(c: CouponEntity) {
 
 async function adminListCoupons(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const all = await queryEntitiesAll<CouponEntity>('coupons');
@@ -64,7 +66,7 @@ async function adminListCoupons(request: HttpRequest, context: InvocationContext
 
 async function adminCreateCoupon(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const body = (await request.json()) as Partial<CouponEntity> & { code?: string };
@@ -101,7 +103,7 @@ async function adminCreateCoupon(request: HttpRequest, context: InvocationContex
 
 async function adminUpdateCoupon(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const code = request.params.code?.toUpperCase();
@@ -120,7 +122,7 @@ async function adminUpdateCoupon(request: HttpRequest, context: InvocationContex
 
 async function adminDeleteCoupon(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const code = request.params.code?.toUpperCase();
@@ -135,12 +137,12 @@ async function adminDeleteCoupon(request: HttpRequest, context: InvocationContex
 
 async function adminCouponRedemptions(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const code = request.params.code?.toUpperCase();
     if (!code) return json({ error: 'code is required' }, 400);
-    const redemptions = await queryEntities('couponRedemptions', `PartitionKey eq '${code}'`);
+    const redemptions = await queryEntities('couponRedemptions', odata`PartitionKey eq ${code}`);
     return json({ code, total: redemptions.length, redemptions });
   } catch (err) {
     context.error('adminCouponRedemptions error', err);
@@ -150,8 +152,8 @@ async function adminCouponRedemptions(request: HttpRequest, context: InvocationC
 
 // OPTIONS lives only on the first handler per route (Azure Functions silently
 // breaks routing when the same (route, method) is registered twice).
-app.http('adminListCoupons',         { route: 'mgmt/coupons',                       methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCoupons });
-app.http('adminCreateCoupon',        { route: 'mgmt/coupons',                       methods: ['POST'],           authLevel: 'anonymous', handler: adminCreateCoupon });
-app.http('adminUpdateCoupon',        { route: 'mgmt/coupons/{code}',                methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCoupon });
-app.http('adminDeleteCoupon',        { route: 'mgmt/coupons/{code}',                methods: ['DELETE'],         authLevel: 'anonymous', handler: adminDeleteCoupon });
-app.http('adminCouponRedemptions',   { route: 'mgmt/coupons/{code}/redemptions',    methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminCouponRedemptions });
+app.http('adminListCoupons',         { route: 'mgmt/coupons',                       methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminListCoupons) });
+app.http('adminCreateCoupon',        { route: 'mgmt/coupons',                       methods: ['POST'],           authLevel: 'anonymous', handler: wrapCors(adminCreateCoupon) });
+app.http('adminUpdateCoupon',        { route: 'mgmt/coupons/{code}',                methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminUpdateCoupon) });
+app.http('adminDeleteCoupon',        { route: 'mgmt/coupons/{code}',                methods: ['DELETE'],         authLevel: 'anonymous', handler: wrapCors(adminDeleteCoupon) });
+app.http('adminCouponRedemptions',   { route: 'mgmt/coupons/{code}/redemptions',    methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminCouponRedemptions) });
