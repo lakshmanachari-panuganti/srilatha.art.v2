@@ -20,6 +20,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://srilatha.art',
   'https://www.lucky1.online',
   'https://orange-forest-042a5df00.7.azurestaticapps.net',
+  'https://lively-stone-006a95b00.7.azurestaticapps.net',
 ]);
 
 const BASE_CORS_HEADERS: Record<string, string> = {

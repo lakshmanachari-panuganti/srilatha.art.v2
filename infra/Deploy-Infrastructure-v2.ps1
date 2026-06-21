@@ -122,7 +122,7 @@
 param(
     [Parameter()]
     [ValidateSet('DEV', 'PRD')]
-    [string]$Environment = 'DEV',
+    [string]$Environment = 'PRD',
 
     # GitHub repo that hosts the Function App source code.
     # Used in Phase 9 to create the OIDC federated credential for GitHub Actions.
@@ -489,8 +489,8 @@ if ($logWorkspace) {
         -Name              $envCfg.LogAnalytics `
         -Location          $envCfg.Location `
         -Sku               'PerGB2018' `
-        -RetentionInDays   $laRetention 
-    -ErrorAction Stop
+        -RetentionInDays   $laRetention `
+        -ErrorAction Stop
     Write-Success "Log Analytics Workspace created: $($envCfg.LogAnalytics) (retention=${laRetention}d, cap=1GB/day)"
 }
 
@@ -1369,6 +1369,19 @@ if ($ciSpExisted) {
     Start-Sleep -Seconds 10
 }
 
+# Azure CLI/Graph payloads can expose SP object id as either `id` or `objectId`.
+# Resolve once and reuse to keep Phase 9 stable across versions.
+$ciSpObjectId = if ($ciSp.PSObject.Properties.Name -contains 'id') {
+    [string]$ciSp.id
+} elseif ($ciSp.PSObject.Properties.Name -contains 'objectId') {
+    [string]$ciSp.objectId
+} else {
+    ''
+}
+if ([string]::IsNullOrWhiteSpace($ciSpObjectId)) {
+    throw "Could not resolve object id for service principal '$ciSpName'. Expected 'id' or 'objectId' in az ad sp list output."
+}
+
 # 9.3  Federated credential(s)
 $existingFedRaw = az ad app federated-credential list --id $ciApp.id --output json 2>$null
 $existingFed = if ([string]::IsNullOrWhiteSpace($existingFedRaw)) { @() } else { $existingFedRaw | ConvertFrom-Json }
@@ -1398,7 +1411,7 @@ foreach ($fc in $federatedSubjects) {
 
 # 9.4  RBAC: minimal role for zipdeploy on the Function App resource
 $ciRoleOutcome = Assign-AzRoleIfMissing `
-    -ObjectId           $ciSp.id `
+    -ObjectId           $ciSpObjectId `
     -RoleDefinitionName 'Website Contributor' `
     -Scope              $faResource.ResourceId `
     -ScopeLabel         "Function App [$($envCfg.FunctionApp)]"
