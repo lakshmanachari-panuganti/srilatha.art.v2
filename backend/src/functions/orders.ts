@@ -238,9 +238,14 @@ async function getOrder(
       return json({ error: 'Authorization header missing or malformed' }, 401);
     }
 
+    let claims: { email?: string };
     try {
-      jwt.verify(token, JWT_SECRET);
+      claims = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { email?: string };
     } catch {
+      return json({ error: 'Invalid or expired token' }, 401);
+    }
+    const callerEmail = claims?.email?.toLowerCase();
+    if (!callerEmail) {
       return json({ error: 'Invalid or expired token' }, 401);
     }
 
@@ -262,6 +267,14 @@ async function getOrder(
     }
 
     if (!orderEntity) {
+      return json({ error: 'Order not found' }, 404);
+    }
+
+    // Object-level authorization: a customer may only read their own orders.
+    // Mismatched callers get 404 (not 403) to avoid confirming the order exists.
+    const ownerEmail =
+      (safeJsonParse(orderEntity.customer) as { email?: string } | null)?.email?.toLowerCase();
+    if (!ownerEmail || ownerEmail !== callerEmail) {
       return json({ error: 'Order not found' }, 404);
     }
 
@@ -310,16 +323,6 @@ async function verifyPayment(
       );
     }
 
-    // Verify HMAC-SHA256 signature
-    const expectedSignature = crypto
-      .createHmac('sha256', RAZORPAY_KEY_SECRET)
-      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
-      .digest('hex');
-
-    if (expectedSignature !== razorpaySignature) {
-      return json({ error: 'Invalid payment signature' }, 400);
-    }
-
     // Find the order in 'pending' partition first, then others
     let orderEntity: OrderEntity | null = null;
 
@@ -334,6 +337,28 @@ async function verifyPayment(
 
     if (!orderEntity) {
       return json({ error: 'Order not found' }, 404);
+    }
+
+    // Bind the signed razorpayOrderId to the order being confirmed. Without
+    // this check, a valid signature from a *different* (cheap) payment could
+    // be replayed to flip a victim's order to 'confirmed'.
+    if (orderEntity.razorpayOrderId !== razorpayOrderId) {
+      return json({ error: 'Order/payment mismatch' }, 400);
+    }
+
+    // Verify HMAC-SHA256 signature with timing-safe compare.
+    const expectedSignature = crypto
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
+      .update(`${razorpayOrderId}|${razorpayPaymentId}`)
+      .digest('hex');
+
+    const sigBufA = Buffer.from(expectedSignature, 'hex');
+    const sigBufB = Buffer.from(razorpaySignature, 'hex');
+    if (
+      sigBufA.length !== sigBufB.length ||
+      !crypto.timingSafeEqual(sigBufA, sigBufB)
+    ) {
+      return json({ error: 'Invalid payment signature' }, 400);
     }
 
     const previousStatus = orderEntity.partitionKey;

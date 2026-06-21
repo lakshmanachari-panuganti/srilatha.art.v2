@@ -6,5 +6,13 @@
       "/_next/*"
     ]
   },
-  "trailingSlash": "auto"
+  "trailingSlash": "auto",
+  "globalHeaders": {
+    "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Content-Security-Policy-Report-Only": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://accounts.google.com https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.blob.core.windows.net https://lh3.googleusercontent.com; connect-src 'self' https://*.azurewebsites.net https://api.razorpay.com https://lumberjack.razorpay.com https://oauth2.googleapis.com https://www.googleapis.com https://accounts.google.com; frame-src https://checkout.razorpay.com https://api.razorpay.com https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+  }
 }

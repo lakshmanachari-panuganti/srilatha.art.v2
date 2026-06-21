@@ -270,7 +270,7 @@ async function forgotPasswordReset(
 
     let payload: jwt.JwtPayload;
     try {
-      payload = jwt.verify(body.resetToken, JWT_SECRET) as jwt.JwtPayload;
+      payload = jwt.verify(body.resetToken, JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload;
     } catch {
       return json({ error: 'Reset session expired. Please start again.' }, 401);
     }

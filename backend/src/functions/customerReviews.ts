@@ -35,7 +35,7 @@ function readCustomerClaims(request: HttpRequest): CustomerJwtPayload | null {
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
   if (!token) return null;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as CustomerJwtPayload;
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as CustomerJwtPayload;
     if (!decoded?.email) return null;
     return decoded;
   } catch {

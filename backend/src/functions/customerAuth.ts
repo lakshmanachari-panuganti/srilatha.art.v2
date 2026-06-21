@@ -9,6 +9,7 @@ import {
 } from '../utils/customerStore';
 import { isValidEmail, normalizeEmail, normalizePhone } from '../utils/identifiers';
 import { recordLogin } from '../utils/auditLog';
+import { clientIp, enforceRateLimit } from '../utils/rateLimit';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +19,11 @@ const CORS_HEADERS: Record<string, string> = {
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+
+// A valid-but-unmatchable bcrypt hash. Used to keep response time constant
+// when an account doesn't exist, so login timing can't enumerate which
+// emails/phones are registered.
+const DUMMY_BCRYPT_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8.4j9q1eY/JlZkPJrW8/2yJqL8nKpW';
 
 function json(body: unknown, status = 200): HttpResponseInit {
   return {
@@ -74,6 +80,18 @@ async function customerRegister(
     }
     if (body.password.length < 8) {
       return json({ error: 'Password must be at least 8 characters.' }, 400);
+    }
+
+    // Anti-spam: cap registrations per IP. Generous threshold (legit users
+    // register at most a handful of times); blocks scripted account flooding.
+    const ipBlocked = await enforceRateLimit({
+      scope: 'register:ip',
+      key: clientIp(request),
+      max: 10,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (ipBlocked) {
+      return { ...ipBlocked, headers: { ...CORS_HEADERS, ...(ipBlocked.headers ?? {}) } };
     }
 
     const phone = body.mobile ? normalizePhone(body.mobile) : undefined;
@@ -139,8 +157,33 @@ async function customerLogin(
       return json({ error: 'Email/phone and password are required.' }, 400);
     }
 
+    // Rate-limit by IP and by identifier. Generous thresholds so a normal
+    // user never hits them; tight enough to stall password brute-forcing.
+    const ip = clientIp(request);
+    const ipBlocked = await enforceRateLimit({
+      scope: 'customer-login:ip',
+      key: ip,
+      max: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (ipBlocked) {
+      return { ...ipBlocked, headers: { ...CORS_HEADERS, ...(ipBlocked.headers ?? {}) } };
+    }
+    const idBlocked = await enforceRateLimit({
+      scope: 'customer-login:identifier',
+      key: identifier.toLowerCase(),
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (idBlocked) {
+      return { ...idBlocked, headers: { ...CORS_HEADERS, ...(idBlocked.headers ?? {}) } };
+    }
+
     const customer = await findCustomerByEmailOrPhone(identifier);
     if (!customer?.passwordHash) {
+      // Run a dummy compare so timing matches the real-account path and
+      // unknown identifiers can't be enumerated by response latency.
+      await bcrypt.compare(body.password, DUMMY_BCRYPT_HASH);
       return json({ error: 'Invalid credentials.' }, 401);
     }
     const ok = await bcrypt.compare(body.password, customer.passwordHash);

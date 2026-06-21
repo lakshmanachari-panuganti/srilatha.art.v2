@@ -2,6 +2,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getEntity, queryEntitiesAll, upsertEntity } from '../utils/tableStorage';
+import { clientIp, enforceRateLimit } from '../utils/rateLimit';
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,11 @@ const CORS_HEADERS: Record<string, string> = {
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 const TOKEN_TTL_SECONDS = 60 * 60 * 12; // 12 hours
+
+// A valid-but-unmatchable bcrypt hash. Used to keep response time constant
+// when an account doesn't exist, so login timing can't enumerate which
+// emails are registered.
+const DUMMY_BCRYPT_HASH = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8.4j9q1eY/JlZkPJrW8/2yJqL8nKpW';
 
 function json(body: unknown, status = 200): HttpResponseInit {
   return {
@@ -112,8 +118,33 @@ async function adminLogin(
     }
     const email = body.email.toLowerCase().trim();
 
+    // Rate-limit by IP (broad anti-brute-force) and by email (anti-targeted).
+    // Generous thresholds so a normal user never hits them.
+    const ip = clientIp(request);
+    const ipBlocked = await enforceRateLimit({
+      scope: 'admin-login:ip',
+      key: ip,
+      max: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (ipBlocked) {
+      return { ...ipBlocked, headers: { ...CORS_HEADERS, ...(ipBlocked.headers ?? {}) } };
+    }
+    const emailBlocked = await enforceRateLimit({
+      scope: 'admin-login:email',
+      key: email,
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (emailBlocked) {
+      return { ...emailBlocked, headers: { ...CORS_HEADERS, ...(emailBlocked.headers ?? {}) } };
+    }
+
     const admin = await getEntity<AdminEntity>('admins', 'admin', email);
     if (!admin) {
+      // Run a dummy compare so timing matches the real-account path and
+      // unknown emails can't be enumerated by response latency.
+      await bcrypt.compare(body.password, DUMMY_BCRYPT_HASH);
       return json({ error: 'Invalid email or password' }, 401);
     }
     // Accept either `active` or `isActive` (operator-bootstrapped rows use isActive).

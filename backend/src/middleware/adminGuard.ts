@@ -40,7 +40,7 @@ export function readAdminClaims(request: HttpRequest): AdminClaims | null {
   if (!token) return null;
   if (!JWT_SECRET) return null;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AdminClaims;
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as AdminClaims;
     if (!ADMIN_ROLES.has(decoded.role)) return null;
     return decoded;
   } catch {

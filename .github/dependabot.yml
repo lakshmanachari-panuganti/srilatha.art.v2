@@ -1,0 +1,76 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+    groups:
+      azure-sdk:
+        patterns:
+          - "@azure/*"
+      types:
+        patterns:
+          - "@types/*"
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+    groups:
+      next:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react*"
+      types:
+        patterns:
+          - "@types/*"
+
+  - package-ecosystem: npm
+    directory: /whatsapp-service
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - whatsapp-service
+    groups:
+      azure-sdk:
+        patterns:
+          - "@azure/*"
+      types:
+        patterns:
+          - "@types/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
