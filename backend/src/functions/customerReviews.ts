@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
 import { queryEntities, queryEntitiesAll, upsertEntity } from '../utils/tableStorage';
@@ -97,10 +98,9 @@ async function listPublicReviews(
   if (request.method === 'OPTIONS') return options();
   try {
     const productId = request.query.get('productId');
-    const baseFilter = `PartitionKey eq 'approved'`;
     const filter = productId
-      ? `${baseFilter} and productId eq '${productId.replace(/'/g, "''")}'`
-      : baseFilter;
+      ? odata`PartitionKey eq 'approved' and productId eq ${productId}`
+      : odata`PartitionKey eq 'approved'`;
     const rows = await queryEntities<ReviewEntity>('reviews', filter);
     rows.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
     return json({ reviews: rows.map(publicReview), total: rows.length });
@@ -132,7 +132,7 @@ async function hasPurchasedProduct(email: string, productId: string): Promise<bo
   for (const order of eligibleOrders) {
     const items = await queryEntities<OrderItemEntity>(
       'orderItems',
-      `PartitionKey eq '${order.rowKey.replace(/'/g, "''")}'`,
+      odata`PartitionKey eq ${order.rowKey}`,
     );
     if (items.some((it) => it.productId === productId)) return true;
   }

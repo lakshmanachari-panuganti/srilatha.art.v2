@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { queryEntities, queryEntitiesAll, upsertEntity, deleteEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
@@ -68,7 +69,7 @@ async function adminListOrders(request: HttpRequest, context: InvocationContext)
 
     let all: OrderEntity[];
     if (statusFilter) {
-      all = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${statusFilter}'`);
+      all = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${statusFilter}`);
     } else {
       all = await queryEntitiesAll<OrderEntity>('orders');
     }
@@ -115,13 +116,13 @@ async function adminGetOrder(request: HttpRequest, context: InvocationContext): 
 
     let entity: OrderEntity | null = null;
     for (const s of ORDER_STATUSES) {
-      const r = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+      const r = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
       if (r.length) { entity = r[0]; break; }
     }
     if (!entity) return json({ error: 'Order not found' }, 404);
 
-    const items = await queryEntities('orderItems', `PartitionKey eq '${id}'`);
-    const events = await queryEntities('orderEvents', `PartitionKey eq '${id}'`);
+    const items = await queryEntities('orderItems', odata`PartitionKey eq ${id}`);
+    const events = await queryEntities('orderEvents', odata`PartitionKey eq ${id}`);
 
     return json({ ...toApi(entity), items, events });
   } catch (err) {
@@ -151,7 +152,7 @@ async function adminUpdateStatus(request: HttpRequest, context: InvocationContex
     let entity: OrderEntity | null = null;
     let oldStatus: OrderStatus | null = null;
     for (const s of ORDER_STATUSES) {
-      const r = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+      const r = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
       if (r.length) { entity = r[0]; oldStatus = s; break; }
     }
     if (!entity || !oldStatus) return json({ error: 'Order not found' }, 404);
@@ -241,7 +242,7 @@ async function adminBulkStatus(request: HttpRequest, context: InvocationContext)
         let entity: OrderEntity | null = null;
         let oldStatus: OrderStatus | null = null;
         for (const s of ORDER_STATUSES) {
-          const r = await queryEntities<OrderEntity>('orders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+          const r = await queryEntities<OrderEntity>('orders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
           if (r.length) { entity = r[0]; oldStatus = s; break; }
         }
         if (!entity || !oldStatus) {

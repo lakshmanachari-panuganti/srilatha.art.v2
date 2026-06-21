@@ -30,7 +30,34 @@ const RESET_TOKEN_TTL_SECONDS = 10 * 60; // 10 min to use the token after verify
 
 const JWT_SECRET = process.env.JWT_SECRET ?? '';
 const RESET_TOKEN_PURPOSE = 'password-reset';
-const EXPOSE_OTP = process.env.EXPOSE_OTP_FOR_TESTING === 'true';
+
+// Triple-gated dev escape hatch. All three conditions must be true for the
+// OTP to ever appear in the API response:
+//   1. NODE_ENV is not 'production'
+//   2. ALLOW_DEV_FLAGS=true (a separate, explicit opt-in so a stray
+//      EXPOSE_OTP_FOR_TESTING setting alone is not enough)
+//   3. EXPOSE_OTP_FOR_TESTING=true
+// If any guard fails in production we log a startup warning so operators
+// are notified that the flag was set but ignored.
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const ALLOW_DEV_FLAGS = process.env.ALLOW_DEV_FLAGS === 'true';
+const EXPOSE_OTP_REQUESTED = process.env.EXPOSE_OTP_FOR_TESTING === 'true';
+const EXPOSE_OTP = !IS_PRODUCTION && ALLOW_DEV_FLAGS && EXPOSE_OTP_REQUESTED;
+
+if (EXPOSE_OTP_REQUESTED && !EXPOSE_OTP) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[security] EXPOSE_OTP_FOR_TESTING was requested but is being ignored ' +
+      `(NODE_ENV=${process.env.NODE_ENV ?? 'unset'}, ALLOW_DEV_FLAGS=${process.env.ALLOW_DEV_FLAGS ?? 'unset'}). ` +
+      'OTPs will not be returned in responses.',
+  );
+} else if (EXPOSE_OTP) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[security] EXPOSE_OTP_FOR_TESTING is ACTIVE — OTPs WILL be returned in responses. ' +
+      'This must never be set in a production-facing environment.',
+  );
+}
 
 interface OtpEntity {
   partitionKey: 'phone';

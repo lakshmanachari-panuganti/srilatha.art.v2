@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { getTableClient, upsertEntity, queryEntities, deleteEntity, getEntity } from '../utils/tableStorage';
@@ -97,6 +98,35 @@ interface OrderEntity {
   [key: string]: unknown;
 }
 
+interface ProductEntity {
+  partitionKey: string;
+  rowKey: string;
+  name: string;
+  price: number;     // paise — authoritative
+  active?: boolean;
+  inStock?: boolean;
+  [key: string]: unknown;
+}
+
+const MAX_ITEMS_PER_ORDER = 50;
+const MAX_QTY_PER_ITEM = 99;
+
+/**
+ * Look up the catalog product by id (RowKey). Cross-partition because the
+ * products table partitions by category, which the client doesn't send.
+ * Returns null if missing or soft-deleted (`active === false`).
+ */
+async function findProductById(productId: string): Promise<ProductEntity | null> {
+  const results = await queryEntities<ProductEntity>(
+    'products',
+    odata`RowKey eq ${productId}`,
+  );
+  const product = results?.[0];
+  if (!product) return null;
+  if (product.active === false) return null;
+  return product;
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/orders  – create order & Razorpay order
 // ---------------------------------------------------------------------------
@@ -120,9 +150,49 @@ async function createOrder(
     if (!items?.length || !customer || !address) {
       return json({ error: 'items, customer and address are required' }, 400);
     }
+    if (items.length > MAX_ITEMS_PER_ORDER) {
+      return json({ error: `Too many items (max ${MAX_ITEMS_PER_ORDER}).` }, 400);
+    }
 
-    // Calculate amounts (paise) — server is the source of truth.
-    const subtotal = items.reduce((sum, item) => sum + item.qty * item.price, 0);
+    // Resolve each item against the catalog. The client-supplied `price` and
+    // `name` fields are IGNORED — taking them on trust let an attacker
+    // submit an order with `price: 100` (₹1 in paise) and pay ₹1 for any
+    // product. Quantities are also clamped server-side.
+    const resolved: OrderItem[] = [];
+    for (const raw of items) {
+      const productId = String(raw?.productId ?? '').trim();
+      if (!productId) {
+        return json({ error: 'Each item must include a productId.' }, 400);
+      }
+      const qtyRaw = Number(raw?.qty);
+      if (!Number.isFinite(qtyRaw) || qtyRaw < 1) {
+        return json({ error: `Invalid quantity for item ${productId}.` }, 400);
+      }
+      const qty = Math.min(MAX_QTY_PER_ITEM, Math.max(1, Math.floor(qtyRaw)));
+
+      const product = await findProductById(productId);
+      if (!product) {
+        return json(
+          { error: `Product ${productId} is unavailable. Please refresh your cart.` },
+          400,
+        );
+      }
+      const price = Number(product.price);
+      if (!Number.isFinite(price) || price < 0) {
+        context.error(`Product ${productId} has invalid price ${product.price}`);
+        return json({ error: 'Catalog data error. Please try again later.' }, 500);
+      }
+
+      resolved.push({
+        productId,
+        name: String(product.name ?? ''),
+        qty,
+        price,
+      });
+    }
+
+    // Calculate amounts (paise) from server-resolved prices only.
+    const subtotal = resolved.reduce((sum, item) => sum + item.qty * item.price, 0);
     let shipping = subtotal >= FREE_SHIPPING_THRESHOLD_PAISE ? 0 : SHIPPING_COST_PAISE;
     let discount = 0;
     let appliedCouponCode: string | undefined;
@@ -189,9 +259,10 @@ async function createOrder(
     };
     await upsertEntity('orders', orderEntity);
 
-    // Save order items to Table Storage
+    // Save order items to Table Storage using server-resolved values, so the
+    // persisted record matches what was actually charged.
     await Promise.all(
-      items.map((item, index) =>
+      resolved.map((item, index) =>
         upsertEntity('orderItems', {
           partitionKey: orderId,
           rowKey: `${item.productId}-${index}`,
@@ -258,7 +329,7 @@ async function getOrder(
     let orderEntity: OrderEntity | null = null;
 
     for (const status of ORDER_STATUSES) {
-      const filter = `PartitionKey eq '${status}' and RowKey eq '${orderId}'`;
+      const filter = odata`PartitionKey eq ${status} and RowKey eq ${orderId}`;
       const results = await queryEntities<OrderEntity>('orders', filter);
       if (results && results.length > 0) {
         orderEntity = results[0];
@@ -279,7 +350,7 @@ async function getOrder(
     }
 
     // Fetch order items
-    const itemsFilter = `PartitionKey eq '${orderId}'`;
+    const itemsFilter = odata`PartitionKey eq ${orderId}`;
     const items = await queryEntities('orderItems', itemsFilter);
 
     return json({
@@ -327,7 +398,7 @@ async function verifyPayment(
     let orderEntity: OrderEntity | null = null;
 
     for (const status of ORDER_STATUSES) {
-      const filter = `PartitionKey eq '${status}' and RowKey eq '${orderId}'`;
+      const filter = odata`PartitionKey eq ${status} and RowKey eq ${orderId}`;
       const results = await queryEntities<OrderEntity>('orders', filter);
       if (results && results.length > 0) {
         orderEntity = results[0];
@@ -406,7 +477,7 @@ async function verifyPayment(
     if (emailTo) {
       const items = await queryEntities<{ name: string; qty: number; price: number }>(
         'orderItems',
-        `PartitionKey eq '${orderId}'`,
+        odata`PartitionKey eq ${orderId}`,
       );
       const itemsList =
         items?.map((i) => `  • ${i.name} × ${i.qty} — ₹${(i.price / 100).toLocaleString('en-IN')}`).join('\n') ?? '';

@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { queryEntitiesAll, queryEntities, upsertEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
@@ -58,7 +59,7 @@ async function adminListReviews(request: HttpRequest, context: InvocationContext
     const statusParam = request.query.get('status');
     let all: ReviewEntity[];
     if (statusParam && (REVIEW_STATUSES as readonly string[]).includes(statusParam)) {
-      all = await queryEntities<ReviewEntity>('reviews', `PartitionKey eq '${statusParam}'`);
+      all = await queryEntities<ReviewEntity>('reviews', odata`PartitionKey eq ${statusParam}`);
     } else {
       all = await queryEntitiesAll<ReviewEntity>('reviews');
     }
@@ -84,7 +85,7 @@ async function adminModerateReview(request: HttpRequest, context: InvocationCont
     let existing: ReviewEntity | null = null;
     let oldStatus: ReviewStatus | null = null;
     for (const s of REVIEW_STATUSES) {
-      const r = await queryEntities<ReviewEntity>('reviews', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+      const r = await queryEntities<ReviewEntity>('reviews', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
       if (r.length) { existing = r[0]; oldStatus = s; break; }
     }
     if (!existing || !oldStatus) return json({ error: 'Review not found' }, 404);
@@ -126,7 +127,7 @@ async function recomputeProductRating(productId: string, context: InvocationCont
   try {
     const approved = await queryEntities<ReviewEntity>(
       'reviews',
-      `PartitionKey eq 'approved' and productId eq '${productId.replace(/'/g, "''")}'`,
+      odata`PartitionKey eq 'approved' and productId eq ${productId}`,
     );
     const reviewCount = approved.length;
     const rating = reviewCount === 0

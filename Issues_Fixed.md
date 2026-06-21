@@ -203,10 +203,108 @@ future drift or accidental secret commits.
 
 | ID | Reason for deferral |
 |---|---|
-| **VUL-001** (server-side price) | "Safe but needs verification" — needs a log-mismatch-then-enforce rollout to be sure no edge case in the catalog is missed. Next phase. |
 | **VUL-004** (require JWT on `verifyPayment`) | Could break guest checkout if that flow exists. Audit first, then enable. Next phase. |
-| **VUL-006** (`odata\`\`` filter builder) | Mechanical sweep across many files — better as its own focused PR. |
 | **VUL-008** (CORS allowlist) | Needs the full list of dev/preview/prod SWA origins before we can safely drop `*`. |
 | **VUL-009** (cookie auth + revocation) | Coordinated client change. Phase 3. |
-| **VUL-013** (`EXPOSE_OTP_FOR_TESTING`) | Conditional on prod misconfig — verify prod App Settings rather than rewrite. |
-| **VUL-016** (`zod` per endpoint) | Bigger refactor; should land alongside the VUL-001 fix. |
+| **VUL-016** (`zod` per endpoint) | Bigger refactor; tracked separately. |
+
+---
+
+## 2026-06-21 — Phase 2: Server-side trust boundaries (no client changes)
+
+Phase 2 closes the remaining server-trust issues that don't need client
+changes. Backend `tsc` and frontend `next build` both pass clean.
+
+### VUL-001 — `createOrder` now resolves prices server-side (price tampering)
+**Severity:** CRITICAL
+**File:** [`backend/src/functions/orders.ts`](backend/src/functions/orders.ts)
+(`createOrder`)
+
+The endpoint was summing `item.qty * item.price` directly from the
+request body and creating a Razorpay order for that amount. An attacker
+could submit `price: 100` (₹1 in paise) for any product and pay ₹1 for it.
+
+**Fix:**
+1. New helper `findProductById(productId)` does a cross-partition lookup
+   of the products table by `RowKey` and refuses soft-deleted entries
+   (`active === false`).
+2. The handler now resolves every cart item against the catalog and
+   builds a server-trusted `resolved[]` array using the catalog's
+   `price` and `name`. The client-supplied `price` and `name` are
+   ignored.
+3. `qty` is clamped to `[1, 99]` and coerced to an integer.
+4. Cart size capped at 50 items.
+5. Missing/inactive products return **400** with the offending
+   `productId` so the UI can prompt the user to refresh.
+6. The persisted `orderItems` rows now use the server-trusted values, so
+   audit trails reflect what was actually charged.
+
+The response shape (`orderId`, `razorpayOrderId`, `amount`, `subtotal`,
+`shipping`, `discount`, `appliedCouponCode`, `currency`, `key`) is
+unchanged for legitimate clients — only the *computed amount* differs
+when a client lies about the price.
+
+---
+
+### VUL-006 — OData filters use the `odata\`\`` tagged template
+**Severity:** MEDIUM
+**Files:**
+[`backend/src/functions/orders.ts`](backend/src/functions/orders.ts),
+[`backend/src/functions/products.ts`](backend/src/functions/products.ts),
+[`backend/src/functions/productAdmin.ts`](backend/src/functions/productAdmin.ts),
+[`backend/src/functions/orderAdmin.ts`](backend/src/functions/orderAdmin.ts),
+[`backend/src/functions/reviewsAdmin.ts`](backend/src/functions/reviewsAdmin.ts),
+[`backend/src/functions/customOrdersAdmin.ts`](backend/src/functions/customOrdersAdmin.ts),
+[`backend/src/functions/couponsAdmin.ts`](backend/src/functions/couponsAdmin.ts),
+[`backend/src/functions/razorpay-webhook.ts`](backend/src/functions/razorpay-webhook.ts),
+[`backend/src/functions/whatsappWebhook.ts`](backend/src/functions/whatsappWebhook.ts),
+[`backend/src/functions/customerReviews.ts`](backend/src/functions/customerReviews.ts)
+
+Many queries built the OData `filter` string by interpolating
+request-derived values without escaping single quotes. Hand-rolled
+`.replace(/'/g, "''")` was applied in only two spots and easy to
+regress — any new identity-scoped query built the same way could leak
+other users' data.
+
+**Fix:** every queryable filter that accepts a user-controlled value
+now uses the
+[`odata\`\`` tagged template from `@azure/data-tables`](https://learn.microsoft.com/javascript/api/@azure/data-tables/?view=azure-node-latest),
+which centralizes quoting. Behavior is preserved for legitimate inputs;
+malicious quotes are now safely escaped.
+
+Filter strings built from hardcoded literals (`PartitionKey eq 'customer'`,
+`PartitionKey eq 'health' and RowKey eq 'singleton'`, etc.) were left as
+plain template literals — there's no user input to escape.
+
+---
+
+### VUL-013 — `EXPOSE_OTP_FOR_TESTING` is now triple-gated
+**Severity:** LOW (conditional on misconfiguration)
+**File:** [`backend/src/functions/customerPasswordReset.ts`](backend/src/functions/customerPasswordReset.ts)
+
+Previously, setting `EXPOSE_OTP_FOR_TESTING=true` made the password-reset
+response include the literal OTP — fully defeating the OTP factor if the
+flag was ever left on in production by mistake.
+
+**Fix:** the flag is now active only if **all three** are true:
+1. `NODE_ENV !== 'production'`
+2. `ALLOW_DEV_FLAGS=true` (separate explicit opt-in)
+3. `EXPOSE_OTP_FOR_TESTING=true`
+
+Additionally:
+- If the flag was *requested* but is being ignored due to one of the
+  guards, a startup `console.warn` makes operators aware.
+- If the flag is ACTIVE, a louder startup `console.warn` reminds
+  operators it must never be set in production.
+
+---
+
+## Validation (Phase 2)
+
+- Backend: `npm run build` (tsc) — **passes clean**.
+- Frontend: `npm run build` (next build, static export) — **passes
+  clean**, all 28 routes generated.
+- Frontend client contract: `createOrder` response shape is identical
+  for legitimate carts. New failure modes (400 `productId unavailable`,
+  400 `Too many items`, 400 `Invalid quantity`) surface cleanly via the
+  existing `ApiError` handling and tell the user to refresh their cart.

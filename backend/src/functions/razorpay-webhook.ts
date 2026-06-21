@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import { upsertEntity, queryEntities } from '../utils/tableStorage';
 import { sendWhatsApp } from './whatsapp';
@@ -40,7 +41,7 @@ async function findOrder(orderId: string): Promise<Record<string, unknown> | nul
   for (const status of ORDER_STATUSES) {
     const results = await queryEntities(
       'orders',
-      `PartitionKey eq '${status}' and RowKey eq '${orderId}'`,
+      odata`PartitionKey eq ${status} and RowKey eq ${orderId}`,
     );
     if (results.length > 0) return results[0] as Record<string, unknown>;
   }
@@ -56,7 +57,7 @@ async function updateOrderStatus(
   // Find current order
   const results = await queryEntities(
     'orders',
-    `PartitionKey eq '${fromStatus}' and RowKey eq '${orderId}'`,
+    odata`PartitionKey eq ${fromStatus} and RowKey eq ${orderId}`,
   );
   if (results.length === 0) return;
 

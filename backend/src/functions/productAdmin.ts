@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { v4 as uuidv4 } from 'uuid';
 import { getEntity, queryEntities, queryEntitiesAll, upsertEntity, deleteEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
@@ -175,7 +176,7 @@ async function adminUpdateProduct(request: HttpRequest, context: InvocationConte
     if (!id) return json({ error: 'id is required' }, 400);
 
     // Find existing — may have moved category, so scan
-    const existing = await queryEntities<ProductEntity>('products', `RowKey eq '${id}'`);
+    const existing = await queryEntities<ProductEntity>('products', odata`RowKey eq ${id}`);
     if (!existing.length) return json({ error: 'Product not found' }, 404);
     const current = existing[0];
 
@@ -219,7 +220,7 @@ async function adminDeleteProduct(request: HttpRequest, context: InvocationConte
     const id = request.params.id;
     if (!id) return json({ error: 'id is required' }, 400);
 
-    const existing = await queryEntities<ProductEntity>('products', `RowKey eq '${id}'`);
+    const existing = await queryEntities<ProductEntity>('products', odata`RowKey eq ${id}`);
     if (!existing.length) return json({ error: 'Product not found' }, 404);
     const current = existing[0];
 

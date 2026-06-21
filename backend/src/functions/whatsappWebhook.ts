@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import { upsertEntity, queryEntities } from '../utils/tableStorage';
 
@@ -34,7 +35,7 @@ interface HealthEntity {
 export async function updateHealth(patch: Partial<HealthEntity>): Promise<void> {
   // Best-effort merge — read current, overlay, upsert. Never throw.
   try {
-    const current = await queryEntities<HealthEntity>(HEALTH_TABLE, `PartitionKey eq '${HEALTH_PK}' and RowKey eq '${HEALTH_RK}'`);
+    const current = await queryEntities<HealthEntity>(HEALTH_TABLE, odata`PartitionKey eq ${HEALTH_PK} and RowKey eq ${HEALTH_RK}`);
     const merged: HealthEntity = {
       ...(current[0] ?? {}),
       partitionKey: HEALTH_PK,

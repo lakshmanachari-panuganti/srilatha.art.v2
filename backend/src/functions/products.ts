@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { getTableClient, queryEntities, queryEntitiesAll } from '../utils/tableStorage';
 
 // ---------------------------------------------------------------------------
@@ -90,9 +91,10 @@ async function listProducts(
     const limit = Math.min(100, Math.max(1, parseInt(request.query.get('limit') ?? '50', 10)));
 
     const filters: string[] = [];
-    if (category) filters.push(`PartitionKey eq '${category}'`);
+    if (category) filters.push(odata`PartitionKey eq ${category}`);
     if (inStockParam !== null && inStockParam !== undefined) {
       const inStockBool = inStockParam === 'true' || inStockParam === '1';
+      // boolean isn't a string-interpolation hazard but use the same path for consistency.
       filters.push(`inStock eq ${inStockBool}`);
     }
     const filter = filters.length > 0 ? filters.join(' and ') : undefined;
@@ -134,7 +136,7 @@ async function getProductBySlug(
       return json({ error: 'slug is required' }, 400);
     }
 
-    const filter = `slug eq '${slug}'`;
+    const filter = odata`slug eq ${slug}`;
     const results = await queryEntities<Product>('products', filter);
 
     const product = results.find(p => p.active !== false);

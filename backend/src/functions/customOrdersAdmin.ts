@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { queryEntitiesAll, queryEntities, upsertEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
@@ -47,7 +48,7 @@ async function adminListCustomOrders(request: HttpRequest, context: InvocationCo
     const statusFilter = request.query.get('status');
     let all: CustomOrderEntity[];
     if (statusFilter && (CO_STATUSES as readonly string[]).includes(statusFilter)) {
-      all = await queryEntities<CustomOrderEntity>('customOrders', `PartitionKey eq '${statusFilter}'`);
+      all = await queryEntities<CustomOrderEntity>('customOrders', odata`PartitionKey eq ${statusFilter}`);
     } else {
       all = await queryEntitiesAll<CustomOrderEntity>('customOrders');
     }
@@ -70,7 +71,7 @@ async function adminUpdateCustomOrder(request: HttpRequest, context: InvocationC
     let existing: CustomOrderEntity | null = null;
     let oldStatus: CoStatus | null = null;
     for (const s of CO_STATUSES) {
-      const r = await queryEntities<CustomOrderEntity>('customOrders', `PartitionKey eq '${s}' and RowKey eq '${id}'`);
+      const r = await queryEntities<CustomOrderEntity>('customOrders', odata`PartitionKey eq ${s} and RowKey eq ${id}`);
       if (r.length) { existing = r[0]; oldStatus = s; break; }
     }
     if (!existing || !oldStatus) return json({ error: 'Custom order not found' }, 404);

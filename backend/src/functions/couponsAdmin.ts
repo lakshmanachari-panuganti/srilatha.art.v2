@@ -1,4 +1,5 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
+import { odata } from '@azure/data-tables';
 import { getEntity, queryEntitiesAll, queryEntities, upsertEntity, deleteEntity } from '../utils/tableStorage';
 import { requireAdmin } from '../middleware/adminGuard';
 
@@ -140,7 +141,7 @@ async function adminCouponRedemptions(request: HttpRequest, context: InvocationC
   try {
     const code = request.params.code?.toUpperCase();
     if (!code) return json({ error: 'code is required' }, 400);
-    const redemptions = await queryEntities('couponRedemptions', `PartitionKey eq '${code}'`);
+    const redemptions = await queryEntities('couponRedemptions', odata`PartitionKey eq ${code}`);
     return json({ code, total: redemptions.length, redemptions });
   } catch (err) {
     context.error('adminCouponRedemptions error', err);
