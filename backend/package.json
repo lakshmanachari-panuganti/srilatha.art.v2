@@ -32,6 +32,6 @@
     "@types/uuid": "^9.0.8",
     "concurrently": "^8.2.2",
     "rimraf": "^5.0.10",
-    "typescript": "^5.4.5"
+    "typescript": "^6.0.3"
   }
 }
