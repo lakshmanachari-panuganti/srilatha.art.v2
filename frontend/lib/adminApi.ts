@@ -164,6 +164,27 @@ export const adminApi = {
   moderateReview: (id: string, action: 'approve' | 'reject') =>
     request<AdminReview>(`/mgmt/reviews/${encodeURIComponent(id)}/${action}`, { method: 'PATCH' }),
 
+  // Issues / Logs
+  listIssues: (params?: { status?: 'open' | 'resolved'; service?: string; severity?: AdminIssueSeverity; since?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.service) qs.set('service', params.service);
+    if (params?.severity) qs.set('severity', params.severity);
+    if (params?.since) qs.set('since', params.since);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const q = qs.toString();
+    return request<{
+      issues: AdminIssue[];
+      total: number;
+      returned: number;
+      summary: { byService: Record<string, number>; bySeverity: Record<string, number> };
+    }>(`/mgmt/issues${q ? `?${q}` : ''}`);
+  },
+  countOpenIssues: () =>
+    request<{ status: 'open'; count: number }>('/mgmt/issues/count?status=open'),
+  resolveIssue: (id: string) =>
+    request<{ success: true; id: string }>(`/mgmt/issues/${encodeURIComponent(id)}/resolve`, { method: 'POST' }),
+
   // WhatsApp
   listConversations: () =>
     request<{ conversations: AdminWhatsappSummary[]; total: number }>('/mgmt/whatsapp/conversations'),
@@ -399,6 +420,23 @@ export interface AiContent {
   description: string;
   material: string;
   careInstructions: string;
+}
+
+export type AdminIssueSeverity = 'critical' | 'error' | 'warning';
+
+export interface AdminIssue {
+  id: string;
+  status: 'open' | 'resolved';
+  service: string;
+  severity: AdminIssueSeverity;
+  message: string;
+  detail?: string;
+  orderId?: string;
+  count: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
 }
 
 export interface AdminWhatsappMessage {

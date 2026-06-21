@@ -9,6 +9,7 @@ import { verifyCustomerToken } from './customerAuth';
 import { sendEmail } from '../utils/email';
 import { renderOrderConfirmation } from '../templates/emailTemplates';
 import { STORE_CONTACT_NUMBER } from './whatsapp';
+import { recordIssue, resolveOpenIssues } from '../utils/issueLog';
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -270,6 +271,17 @@ async function createOrder(
         description ??
         (errBody ? errBody.slice(0, 300) : `Razorpay returned HTTP ${razorpayRes.status}`);
 
+      // Severity escalates to 'critical' on 401 — that's almost always a
+      // bad/missing key, which blocks every checkout site-wide.
+      void recordIssue({
+        service: 'razorpay',
+        severity: razorpayRes.status === 401 ? 'critical' : 'error',
+        message: `Razorpay create-order failed (HTTP ${razorpayRes.status}): ${message.slice(0, 200)}`,
+        detail: errBody,
+        orderId,
+        fingerprint: 'razorpay:create-order',
+      });
+
       return json(
         {
           error: message,
@@ -280,6 +292,10 @@ async function createOrder(
         502,
       );
     }
+
+    // Success path: self-heal any open create-order issues so a transient
+    // outage doesn't leave a stale red badge.
+    void resolveOpenIssues({ service: 'razorpay', fingerprint: 'razorpay:create-order' });
 
     const razorpayOrder = (await razorpayRes.json()) as { id: string };
     const razorpayOrderId = razorpayOrder.id;

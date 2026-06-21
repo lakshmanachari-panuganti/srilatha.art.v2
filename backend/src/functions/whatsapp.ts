@@ -1,6 +1,7 @@
 import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { renderTemplate } from '../templates/whatsappTemplates';
+import { recordIssue, resolveOpenIssues } from '../utils/issueLog';
 
 // Site-specific store contact number, injected into every customer-facing
 // template as the trailing `Store Contact Number` positional variable.
@@ -57,6 +58,13 @@ export async function sendWhatsApp(to: string, message: string): Promise<WhatsAp
 
   if (!baseUrl || !serviceKey) {
     console.warn('WHATSAPP_SERVICE_URL or WHATSAPP_SERVICE_KEY not set — skipping notification');
+    void recordIssue({
+      service: 'whatsapp',
+      severity: 'critical',
+      message: 'WhatsApp microservice not configured',
+      detail: 'WHATSAPP_SERVICE_URL or WHATSAPP_SERVICE_KEY missing on backend app settings',
+      fingerprint: 'whatsapp:not-configured',
+    });
     return { ok: false, reason: 'not-configured' };
   }
 
@@ -76,15 +84,31 @@ export async function sendWhatsApp(to: string, message: string): Promise<WhatsAp
     if (!res.ok) {
       const detail = await res.text().catch(() => `HTTP ${res.status}`);
       console.error('WhatsApp microservice send error:', detail);
+      void recordIssue({
+        service: 'whatsapp',
+        severity: 'error',
+        message: `WhatsApp send failed (HTTP ${res.status})`,
+        detail,
+        fingerprint: 'whatsapp:api-error',
+      });
       return { ok: false, reason: 'api-error', detail };
     }
     // The microservice returns 202 with `{accepted:true,idempotencyKey}` —
     // the actual Meta call happens in its outbound queue trigger. From this
     // call site's perspective the message is on its way.
+    void resolveOpenIssues({ service: 'whatsapp', fingerprint: 'whatsapp:api-error' });
+    void resolveOpenIssues({ service: 'whatsapp', fingerprint: 'whatsapp:not-configured' });
     return { ok: true };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error('WhatsApp microservice fetch failed:', detail);
+    void recordIssue({
+      service: 'whatsapp',
+      severity: 'error',
+      message: `WhatsApp fetch failed: ${detail.slice(0, 200)}`,
+      detail,
+      fingerprint: 'whatsapp:api-error',
+    });
     return { ok: false, reason: 'api-error', detail };
   }
 }

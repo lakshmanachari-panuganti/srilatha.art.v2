@@ -4,6 +4,7 @@ import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import { upsertEntity, queryEntities } from '../utils/tableStorage';
 import { sendWhatsApp } from './whatsapp';
+import { recordIssue } from '../utils/issueLog';
 
 // ---------------------------------------------------------------------------
 // CORS helpers
@@ -85,6 +86,13 @@ async function handleRazorpayWebhook(
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!webhookSecret) {
     context.error('RAZORPAY_WEBHOOK_SECRET not configured');
+    void recordIssue({
+      service: 'razorpay-webhook',
+      severity: 'critical',
+      message: 'RAZORPAY_WEBHOOK_SECRET not configured',
+      detail: 'Webhook calls from Razorpay will be rejected until the secret is set in app settings.',
+      fingerprint: 'razorpay-webhook:not-configured',
+    });
     return json({ error: 'Webhook not configured' }, 500);
   }
 
@@ -100,6 +108,16 @@ async function handleRazorpayWebhook(
   try {
     if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
       context.warn('Invalid Razorpay webhook signature');
+      // Bad-signature webhooks are usually attempts to forge events. Log as
+      // an issue so a sudden spike is visible in the dashboard — one row
+      // with count incrementing, not a flood.
+      void recordIssue({
+        service: 'razorpay-webhook',
+        severity: 'warning',
+        message: 'Razorpay webhook signature rejected',
+        detail: 'A webhook with an invalid x-razorpay-signature was rejected. If this happens repeatedly the configured secret may be out of sync with Razorpay dashboard.',
+        fingerprint: 'razorpay-webhook:signature',
+      });
       return json({ error: 'Invalid signature' }, 400);
     }
   } catch {

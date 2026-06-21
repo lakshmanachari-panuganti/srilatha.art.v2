@@ -1,4 +1,5 @@
 import nodemailer, { Transporter } from 'nodemailer';
+import { recordIssue, resolveOpenIssues } from './issueLog';
 
 // ---------------------------------------------------------------------------
 // SMTP-based email sender.
@@ -82,11 +83,15 @@ function getTransporter(cfg: SmtpConfig): Transporter {
 export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult> {
   const cfg = readConfig();
   if (!cfg) {
-    return {
-      ok: false,
-      reason: 'not-configured',
-      detail: 'SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_SENDER_EMAIL are required',
-    };
+    const detail = 'SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS and SMTP_SENDER_EMAIL are required';
+    void recordIssue({
+      service: 'email',
+      severity: 'critical',
+      message: 'SMTP not configured',
+      detail,
+      fingerprint: 'email:not-configured',
+    });
+    return { ok: false, reason: 'not-configured', detail };
   }
 
   try {
@@ -98,11 +103,22 @@ export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult>
       html: input.html,
       replyTo: input.replyTo ?? cfg.defaultReplyTo,
     });
+    // Self-heal: a successful send clears any open SMTP issues so transient
+    // outages don't leave stale red badges in the dashboard.
+    void resolveOpenIssues({ service: 'email', fingerprint: 'email:smtp-error' });
+    void resolveOpenIssues({ service: 'email', fingerprint: 'email:not-configured' });
     return { ok: true, messageId: info.messageId };
   } catch (err) {
     // Preserve the SMTP error verbatim so the API can surface it.
     const detail = err instanceof Error ? err.message : String(err);
     console.error('sendEmail failed:', detail);
+    void recordIssue({
+      service: 'email',
+      severity: 'error',
+      message: `SMTP send failed: ${detail.slice(0, 200)}`,
+      detail,
+      fingerprint: 'email:smtp-error',
+    });
     return { ok: false, reason: 'smtp-error', detail };
   }
 }
