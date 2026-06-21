@@ -3,7 +3,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { getTableClient, upsertEntity, queryEntities, deleteEntity, getEntity } from '../utils/tableStorage';
+import { getTableClient, upsertEntity, queryEntities, queryEntitiesAll, deleteEntity, getEntity } from '../utils/tableStorage';
 import { computeCouponDiscount, getCouponByCode } from './coupons';
 import { verifyCustomerToken } from './customerAuth';
 import { sendEmail } from '../utils/email';
@@ -249,8 +249,36 @@ async function createOrder(
 
     if (!razorpayRes.ok) {
       const errBody = await razorpayRes.text();
-      context.error('Razorpay order creation failed', errBody);
-      return json({ error: 'Failed to create payment order' }, 502);
+      context.error('Razorpay order creation failed', razorpayRes.status, errBody);
+
+      // Razorpay error envelope: { error: { code, description, reason, source, step } }
+      let code: string | undefined;
+      let description: string | undefined;
+      let reason: string | undefined;
+      try {
+        const parsed = JSON.parse(errBody) as {
+          error?: { code?: string; description?: string; reason?: string };
+        };
+        code = parsed.error?.code;
+        description = parsed.error?.description;
+        reason = parsed.error?.reason;
+      } catch {
+        // Non-JSON body (HTML error page, empty, etc.) — fall through to raw text.
+      }
+
+      const message =
+        description ??
+        (errBody ? errBody.slice(0, 300) : `Razorpay returned HTTP ${razorpayRes.status}`);
+
+      return json(
+        {
+          error: message,
+          razorpayStatus: razorpayRes.status,
+          ...(code ? { razorpayCode: code } : {}),
+          ...(reason ? { razorpayReason: reason } : {}),
+        },
+        502,
+      );
     }
 
     const razorpayOrder = (await razorpayRes.json()) as { id: string };
@@ -388,6 +416,55 @@ async function getOrder(
     });
   } catch (err) {
     context.error('getOrder error', err);
+    return json({ error: 'Internal server error' }, 500);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/users/me/orders  – the signed-in customer's order history
+// ---------------------------------------------------------------------------
+
+async function listMyOrders(
+  request: HttpRequest,
+  context: InvocationContext,
+): Promise<HttpResponseInit> {
+  if (request.method === 'OPTIONS') return options();
+
+  try {
+    const authHeader = request.headers.get('Authorization') ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) {
+      return json({ error: 'Authorization header missing or malformed' }, 401);
+    }
+    const verified = await verifyCustomerToken(token);
+    if (!verified) {
+      return json({ error: 'Invalid or expired token' }, 401);
+    }
+    const callerEmail = verified.claims.email.toLowerCase();
+
+    // Orders partition by status, not by customer — and the customer email
+    // lives inside the JSON-serialised `customer` blob, which isn't a Table
+    // Storage filterable field. So we scan and filter in-process. Fine for
+    // the current catalog volume; add an `ordersByCustomer` index keyed on
+    // email at verifyPayment time when this table grows past a few thousand.
+    const all = await queryEntitiesAll<OrderEntity>('orders');
+    const mine = all.filter((o) => {
+      const ownerEmail =
+        (safeJsonParse(o.customer) as { email?: string } | null)?.email?.toLowerCase();
+      return ownerEmail === callerEmail;
+    });
+
+    // Newest first by createdAt (ISO 8601 string compares lexicographically).
+    mine.sort((a, b) =>
+      String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')),
+    );
+
+    return json({
+      orders: mine.map(normalizeOrder),
+      total: mine.length,
+    });
+  } catch (err) {
+    context.error('listMyOrders error', err);
     return json({ error: 'Internal server error' }, 500);
   }
 }
@@ -625,6 +702,13 @@ app.http('getOrder', {
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: wrapCors(getOrder),
+});
+
+app.http('listMyOrders', {
+  route: 'users/me/orders',
+  methods: ['GET', 'OPTIONS'],
+  authLevel: 'anonymous',
+  handler: wrapCors(listMyOrders),
 });
 
 app.http('verifyPayment', {

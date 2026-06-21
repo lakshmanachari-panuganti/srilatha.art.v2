@@ -286,6 +286,27 @@ export function verifyPayment(
   );
 }
 
+export interface MyOrderSummary {
+  orderId: string;
+  status: string;
+  razorpayOrderId?: string;
+  customer: { name?: string; email?: string; phone?: string } | null;
+  address: { line1?: string; city?: string; state?: string; pincode?: string } | null;
+  subtotal: number;
+  shipping: number;
+  discount: number;
+  total: number;
+  createdAt: string;
+  couponCode?: string;
+}
+
+export function listMyOrders(token: string) {
+  return request<{ orders: MyOrderSummary[]; total: number }>(
+    '/users/me/orders',
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+}
+
 // ─── Products ────────────────────────────────────────────────────────────────
 
 import type { Product } from './data';
