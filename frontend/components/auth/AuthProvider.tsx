@@ -1,8 +1,9 @@
 'use client';
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { useGoogleClientId } from '@/components/runtime/RuntimeConfigProvider';
 import { authRefresh, authLogout } from '@/lib/api';
+import AuthModal from './AuthModal';
 
 const TOKEN_KEY = 'google_auth_token';
 
@@ -30,17 +31,38 @@ interface AuthContextType {
   user: User | null;
   login: (credential: string) => void;
   logout: () => void;
+  /** Open the sign-in/register modal. */
+  openAuthModal: (tab?: 'signin' | 'register') => void;
+  /** Close the sign-in/register modal. */
+  closeAuthModal: () => void;
+  /**
+   * Gate an action behind a successful sign-in. If the user is already
+   * authenticated, runs `action` immediately and returns true. Otherwise,
+   * queues `action` to run after the next successful login and opens the
+   * auth modal, returning false.
+   */
+  requireAuth: (action?: () => void) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   login: () => {},
   logout: () => {},
+  openAuthModal: () => {},
+  closeAuthModal: () => {},
+  requireAuth: () => false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Global auth-modal state + pending action queue. Components anywhere in
+  // the tree can call `requireAuth(action)` to gate behavior — if the user
+  // isn't signed in, the modal opens and the action runs after login.
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalTab, setAuthModalTab] = useState<'signin' | 'register'>('signin');
+  const pendingActionRef = useRef<(() => void) | null>(null);
 
   // Schedule a silent refresh well before the current token expires. The
   // backend's /api/auth/refresh accepts a recently-expired token within
@@ -118,6 +140,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const openAuthModal = useCallback((tab: 'signin' | 'register' = 'signin') => {
+    setAuthModalTab(tab);
+    setAuthModalOpen(true);
+  }, []);
+
+  const closeAuthModal = useCallback(() => {
+    setAuthModalOpen(false);
+    // Drop any queued action if the user closed the modal without signing in.
+    pendingActionRef.current = null;
+  }, []);
+
+  const requireAuth = useCallback((action?: () => void) => {
+    if (user) {
+      action?.();
+      return true;
+    }
+    pendingActionRef.current = action ?? null;
+    setAuthModalTab('signin');
+    setAuthModalOpen(true);
+    return false;
+  }, [user]);
+
+  // When the user becomes authenticated, flush any queued action that was
+  // waiting on a successful login (e.g. an "Add to Cart" click).
+  useEffect(() => {
+    if (!user) return;
+    const pending = pendingActionRef.current;
+    if (pending) {
+      pendingActionRef.current = null;
+      pending();
+    }
+  }, [user]);
+
   const logout = () => {
     const current = localStorage.getItem(TOKEN_KEY);
     setUser(null);
@@ -134,8 +189,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, openAuthModal, closeAuthModal, requireAuth }}>
       {children}
+      <AuthModal isOpen={authModalOpen} onClose={closeAuthModal} defaultTab={authModalTab} />
     </AuthContext.Provider>
   );
 }

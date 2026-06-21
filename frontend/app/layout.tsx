@@ -6,6 +6,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import WhatsAppFloat from '@/components/layout/WhatsAppFloat';
 import { CartProvider } from '@/components/cart/CartProvider';
+import { WishlistProvider } from '@/components/wishlist/WishlistProvider';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { AdminAuthProvider } from '@/components/admin/AdminAuthProvider';
 import { RuntimeConfigProvider } from '@/components/runtime/RuntimeConfigProvider';
@@ -76,14 +77,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>
               <AdminAuthProvider>
                 <CartProvider>
-                  <a href="#main-content" className="skip-link">Skip to main content</a>
-                  <AnnouncementBar />
-                  <Header />
-                  <main id="main-content">
-                    {children}
-                  </main>
-                  <Footer />
-                  <WhatsAppFloat />
+                  <WishlistProvider>
+                    <a href="#main-content" className="skip-link">Skip to main content</a>
+                    <AnnouncementBar />
+                    <Header />
+                    <main id="main-content">
+                      {children}
+                    </main>
+                    <Footer />
+                    <WhatsAppFloat />
+                  </WishlistProvider>
                 </CartProvider>
               </AdminAuthProvider>
             </AuthProvider>

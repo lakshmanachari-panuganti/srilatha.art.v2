@@ -1,6 +1,13 @@
 'use client';
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { Product, formatPrice } from '@/lib/data';
+import { useAuth } from '@/components/auth/AuthProvider';
+
+// Cart is persisted per-user in localStorage under a namespaced key so the
+// cart survives sign-out and is restored on the next sign-in (per the
+// product requirement). Anonymous browsing has no cart — `requireAuth`
+// gates the only mutating entry points.
+const keyFor = (email: string) => `srilatha_cart::${email.toLowerCase()}`;
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export interface CartItem {
@@ -110,24 +117,36 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 // ─── Provider ──────────────────────────────────────────────────────────────
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, { items: [], isOpen: false });
+  const { user } = useAuth();
 
-  // Hydrate from localStorage on mount
+  // Hydrate from the active user's namespaced key whenever the signed-in
+  // user changes. On sign-out (`user` -> null) the in-memory cart is wiped
+  // and the drawer is closed; the previous user's items remain in
+  // localStorage so they're restored the next time that user signs in.
   useEffect(() => {
+    if (!user) {
+      dispatch({ type: 'HYDRATE', items: [] });
+      dispatch({ type: 'CLOSE_CART' });
+      return;
+    }
     try {
-      const saved = localStorage.getItem('srilatha_cart');
-      if (saved) {
-        const items = JSON.parse(saved) as CartItem[];
-        dispatch({ type: 'HYDRATE', items });
-      }
-    } catch { /* ignore */ }
-  }, []);
+      const saved = localStorage.getItem(keyFor(user.email));
+      const items = saved ? (JSON.parse(saved) as CartItem[]) : [];
+      dispatch({ type: 'HYDRATE', items: Array.isArray(items) ? items : [] });
+    } catch {
+      dispatch({ type: 'HYDRATE', items: [] });
+    }
+  }, [user]);
 
-  // Persist to localStorage
+  // Persist changes — but only while a user is signed in. Skipping the
+  // write when logged out prevents the post-logout `HYDRATE [] ` above
+  // from clobbering the just-restored per-user snapshot.
   useEffect(() => {
+    if (!user) return;
     try {
-      localStorage.setItem('srilatha_cart', JSON.stringify(state.items));
+      localStorage.setItem(keyFor(user.email), JSON.stringify(state.items));
     } catch { /* ignore */ }
-  }, [state.items]);
+  }, [state.items, user]);
 
   // Lock body scroll when cart open
   useEffect(() => {

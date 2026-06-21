@@ -5,17 +5,17 @@ import AccountShell from '@/components/auth/AccountShell';
 import type { Product } from '@/lib/data';
 import { listProducts } from '@/lib/api';
 import ProductCard from '@/components/shop/ProductCard';
+import { useWishlist } from '@/components/wishlist/WishlistProvider';
 
 export default function WishlistPage() {
+  const { ids } = useWishlist();
   const [products, setProducts] = useState<Product[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
+  // Re-derive the visible product set whenever the wishlist ids change
+  // (e.g. user removes an item from the heart toggle on the cards below).
   useEffect(() => {
     let cancelled = false;
-    let ids: string[] = [];
-    try {
-      ids = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
-    } catch { ids = []; }
 
     if (ids.length === 0) {
       setProducts([]);
@@ -23,6 +23,7 @@ export default function WishlistPage() {
       return;
     }
 
+    setHydrated(false);
     listProducts({ limit: 100 })
       .then(r => {
         if (cancelled) return;
@@ -32,7 +33,7 @@ export default function WishlistPage() {
       .finally(() => { if (!cancelled) setHydrated(true); });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [ids]);
 
   return (
     <AccountShell currentLabel="Wishlist">

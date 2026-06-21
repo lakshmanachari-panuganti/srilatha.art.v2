@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/components/cart/CartProvider';
 import CartDrawer from '@/components/cart/CartDrawer';
-import AuthModal from '@/components/auth/AuthModal';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { useWishlist } from '@/components/wishlist/WishlistProvider';
 import { CONTACT, waLink } from '@/lib/contact';
 import { CATEGORY_META } from '@/lib/categoryIcons';
 
@@ -38,12 +38,11 @@ export default function Header() {
   const [hidden, setHidden] = useState(false);
   
   // Auth state
-  const { user, logout } = useAuth();
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const { user, logout, openAuthModal } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileCollectionsOpen, setMobileCollectionsOpen] = useState(false);
 
-  const [wishlistCount, setWishlistCount] = useState(0);
+  const { count: wishlistCount } = useWishlist();
 
   const collectionsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -79,22 +78,9 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
-    document.body.style.overflow = drawerOpen || authModalOpen ? 'hidden' : '';
+    document.body.style.overflow = drawerOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [drawerOpen, authModalOpen]);
-
-  useEffect(() => {
-    const readCount = () => {
-      try {
-        const list = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
-        setWishlistCount(Array.isArray(list) ? list.length : 0);
-      } catch { setWishlistCount(0); }
-    };
-    readCount();
-    // Update when storage changes (other tabs) or pathname changes (in-tab nav)
-    window.addEventListener('storage', readCount);
-    return () => window.removeEventListener('storage', readCount);
-  }, [pathname]);
+  }, [drawerOpen]);
 
   const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
 
@@ -237,9 +223,9 @@ export default function Header() {
 
             {/* Account */}
             <div style={{ position: 'relative' }} ref={userMenuRef}>
-              <button 
-                onClick={() => user ? setUserMenuOpen(!userMenuOpen) : setAuthModalOpen(true)} 
-                className="header-icon-btn" 
+              <button
+                onClick={() => user ? setUserMenuOpen(!userMenuOpen) : openAuthModal('signin')}
+                className="header-icon-btn"
                 aria-label="Account" 
                 id="header-account-btn"
               >
@@ -385,7 +371,7 @@ export default function Header() {
         ) : (
           <button
             type="button"
-            onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); setAuthModalOpen(true); }}
+            onClick={() => { setDrawerOpen(false); setMobileCollectionsOpen(false); openAuthModal('signin'); }}
             className="btn btn-secondary btn-full"
             style={{ marginBottom: 'var(--sp-4)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-2)' }}
           >
@@ -453,11 +439,6 @@ export default function Header() {
       </aside>
 
       <CartDrawer />
-
-      <AuthModal 
-        isOpen={authModalOpen} 
-        onClose={() => setAuthModalOpen(false)} 
-      />
 
       <style>{`
         #header-wishlist-btn { display: none; }

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Product } from "@/lib/data";
 import { formatPrice } from "@/lib/data";
 import { useCart } from "@/components/cart/CartProvider";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { useWishlist } from "@/components/wishlist/WishlistProvider";
 import { waLink } from "@/lib/contact";
 
 /* ─────────────────────────────────────────────────────────────────
@@ -276,33 +278,25 @@ interface ProductActionsProps {
 
 export default function ProductActions({ product }: ProductActionsProps) {
   const [quantity, setQuantity] = useState(1);
-  const [wishlisted, setWishlisted] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
   const { addItem, openCart } = useCart();
+  const { requireAuth } = useAuth();
+  const { isWishlisted, toggle: toggleWishlistId } = useWishlist();
+  const wishlisted = isWishlisted(product.id);
 
   const maxQty = Math.min(product.stockCount, 10);
 
-  useEffect(() => {
-    try {
-      const list: string[] = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
-      setWishlisted(list.includes(product.id));
-    } catch { /* ignore */ }
-  }, [product.id]);
-
   const handleAddToCart = () => {
-    addItem(product, quantity);
-    setAddedToCart(true);
-    openCart();
-    setTimeout(() => setAddedToCart(false), 2500);
+    requireAuth(() => {
+      addItem(product, quantity);
+      setAddedToCart(true);
+      openCart();
+      setTimeout(() => setAddedToCart(false), 2500);
+    });
   };
 
   const toggleWishlist = () => {
-    try {
-      const list: string[] = JSON.parse(localStorage.getItem('srilatha_wishlist') ?? '[]');
-      const next = wishlisted ? list.filter(id => id !== product.id) : [...list, product.id];
-      localStorage.setItem('srilatha_wishlist', JSON.stringify(next));
-      setWishlisted(!wishlisted);
-    } catch { /* ignore */ }
+    requireAuth(() => toggleWishlistId(product.id));
   };
 
   const whatsappUrl = waLink(

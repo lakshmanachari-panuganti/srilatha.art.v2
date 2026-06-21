@@ -1,9 +1,10 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
 import { Product, formatPrice } from '@/lib/data';
 import { useCart } from '@/components/cart/CartProvider';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useWishlist } from '@/components/wishlist/WishlistProvider';
 import { PLACEHOLDER_PRODUCT_IMG } from '@/lib/assets';
 
 function StarRating({ rating }: { rating: number }) {
@@ -23,13 +24,9 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, showQuickAdd = true }: ProductCardProps) {
   const { addItem, openCart } = useCart();
-  const [wishlisted, setWishlisted] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      const list = JSON.parse(localStorage.getItem('srilatha_wishlist') || '[]');
-      return list.includes(product.id);
-    } catch { return false; }
-  });
+  const { requireAuth } = useAuth();
+  const { isWishlisted, toggle: toggleWishlistId } = useWishlist();
+  const wishlisted = isWishlisted(product.id);
 
   const discount = product.originalPrice
     ? Math.round((1 - product.price / product.originalPrice) * 100)
@@ -38,20 +35,17 @@ export default function ProductCard({ product, showQuickAdd = true }: ProductCar
   const toggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    try {
-      const list: string[] = JSON.parse(localStorage.getItem('srilatha_wishlist') || '[]');
-      const next = wishlisted ? list.filter(id => id !== product.id) : [...list, product.id];
-      localStorage.setItem('srilatha_wishlist', JSON.stringify(next));
-      setWishlisted(!wishlisted);
-    } catch {}
+    requireAuth(() => toggleWishlistId(product.id));
   };
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (!product.inStock) return;
-    addItem(product, 1);
-    openCart();
+    requireAuth(() => {
+      addItem(product, 1);
+      openCart();
+    });
   };
 
   return (
