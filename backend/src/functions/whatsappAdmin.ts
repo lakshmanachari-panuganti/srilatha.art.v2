@@ -1,5 +1,6 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { requireAdmin } from '../middleware/adminGuard';
+import { wrapCors } from '../utils/cors';
 
 // Thin HTTP proxy in front of the standalone WhatsApp microservice.
 // The microservice (whatsapp-service/, deployed to func-srilathaartwhatsappv2)
@@ -62,14 +63,14 @@ async function proxy(
 
 async function adminListConversations(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   return proxy('/api/conversations', 'GET', context);
 }
 
 async function adminGetConversation(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   const phone = request.params.phone;
   if (!phone) return json({ error: 'phone is required' }, 400);
@@ -78,7 +79,7 @@ async function adminGetConversation(request: HttpRequest, context: InvocationCon
 
 async function adminMarkConversationRead(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   const phone = request.params.phone;
   if (!phone) return json({ error: 'phone is required' }, 400);
@@ -87,12 +88,12 @@ async function adminMarkConversationRead(request: HttpRequest, context: Invocati
 
 async function adminGetHealth(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   return proxy('/api/health', 'GET', context);
 }
 
-app.http('adminListConversations', { route: 'mgmt/whatsapp/conversations', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListConversations });
-app.http('adminGetConversation', { route: 'mgmt/whatsapp/conversations/{phone}', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetConversation });
-app.http('adminMarkConversationRead', { route: 'mgmt/whatsapp/conversations/{phone}/read', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminMarkConversationRead });
-app.http('adminGetWhatsappHealth', { route: 'mgmt/whatsapp/health', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminGetHealth });
+app.http('adminListConversations', { route: 'mgmt/whatsapp/conversations', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminListConversations) });
+app.http('adminGetConversation', { route: 'mgmt/whatsapp/conversations/{phone}', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminGetConversation) });
+app.http('adminMarkConversationRead', { route: 'mgmt/whatsapp/conversations/{phone}/read', methods: ['POST', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminMarkConversationRead) });
+app.http('adminGetWhatsappHealth', { route: 'mgmt/whatsapp/health', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminGetHealth) });

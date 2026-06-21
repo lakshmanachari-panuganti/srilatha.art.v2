@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { upsertCustomer } from '../utils/customerStore';
 import { isValidEmail, normalizeEmail } from '../utils/identifiers';
@@ -152,5 +153,5 @@ app.http('customerGoogleAuth', {
   route: 'auth/google',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: customerGoogleAuth,
+  handler: wrapCors(customerGoogleAuth),
 });

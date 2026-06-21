@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import { queryEntitiesAll, queryEntities, upsertEntity } from '../utils/tableStorage';
@@ -42,7 +43,7 @@ function toApi(e: CustomOrderEntity) {
 
 async function adminListCustomOrders(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const statusFilter = request.query.get('status');
@@ -62,7 +63,7 @@ async function adminListCustomOrders(request: HttpRequest, context: InvocationCo
 
 async function adminUpdateCustomOrder(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const id = request.params.id;
@@ -93,5 +94,5 @@ async function adminUpdateCustomOrder(request: HttpRequest, context: InvocationC
   }
 }
 
-app.http('adminListCustomOrders', { route: 'mgmt/custom-orders', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListCustomOrders });
-app.http('adminUpdateCustomOrder', { route: 'mgmt/custom-orders/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: adminUpdateCustomOrder });
+app.http('adminListCustomOrders', { route: 'mgmt/custom-orders', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminListCustomOrders) });
+app.http('adminUpdateCustomOrder', { route: 'mgmt/custom-orders/{id}', methods: ['PATCH', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminUpdateCustomOrder) });

@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getEntity, queryEntitiesAll } from '../utils/tableStorage';
 
@@ -171,12 +172,12 @@ app.http('activeCoupons', {
   route: 'coupons/active',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: activeCoupons,
+  handler: wrapCors(activeCoupons),
 });
 
 app.http('validateCoupon', {
   route: 'coupons/validate',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: validateCoupon,
+  handler: wrapCors(validateCoupon),
 });

@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import { queryEntitiesAll, queryEntities, upsertEntity } from '../utils/tableStorage';
@@ -53,7 +54,7 @@ function toApi(e: ReviewEntity) {
 
 async function adminListReviews(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const statusParam = request.query.get('status');
@@ -73,7 +74,7 @@ async function adminListReviews(request: HttpRequest, context: InvocationContext
 
 async function adminModerateReview(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
   try {
     const id = request.params.id;
@@ -150,5 +151,5 @@ async function recomputeProductRating(productId: string, context: InvocationCont
   }
 }
 
-app.http('adminListReviews', { route: 'mgmt/reviews', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: adminListReviews });
-app.http('adminModerateReview', { route: 'mgmt/reviews/{id}/{action}', methods: ['PATCH', 'POST', 'OPTIONS'], authLevel: 'anonymous', handler: adminModerateReview });
+app.http('adminListReviews', { route: 'mgmt/reviews', methods: ['GET', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminListReviews) });
+app.http('adminModerateReview', { route: 'mgmt/reviews/{id}/{action}', methods: ['PATCH', 'POST', 'OPTIONS'], authLevel: 'anonymous', handler: wrapCors(adminModerateReview) });

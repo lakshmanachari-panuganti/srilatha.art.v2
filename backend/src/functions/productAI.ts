@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { randomUUID } from 'crypto';
 import { requireAdmin } from '../middleware/adminGuard';
@@ -72,7 +73,7 @@ function logFailure(context: InvocationContext, p: LogPayload) {
 
 async function aiGenerate(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   const requestId = randomUUID();
@@ -139,7 +140,7 @@ function detectImageMime(buf: Buffer): 'image/jpeg' | 'image/png' | 'image/webp'
 
 async function aiGenerateFromFile(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   const requestId = randomUUID();
@@ -198,12 +199,12 @@ app.http('aiGenerateProductContent', {
   route: 'mgmt/products/ai-generate',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: aiGenerate,
+  handler: wrapCors(aiGenerate),
 });
 
 app.http('aiGenerateProductContentFromFile', {
   route: 'mgmt/products/ai-generate-upload',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: aiGenerateFromFile,
+  handler: wrapCors(aiGenerateFromFile),
 });

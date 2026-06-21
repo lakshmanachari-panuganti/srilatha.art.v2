@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import { queryEntities, queryEntitiesAll, upsertEntity, deleteEntity } from '../utils/tableStorage';
@@ -58,7 +59,7 @@ function toApi(entity: OrderEntity) {
 
 async function adminListOrders(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -107,7 +108,7 @@ async function adminListOrders(request: HttpRequest, context: InvocationContext)
 
 async function adminGetOrder(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -137,7 +138,7 @@ async function adminGetOrder(request: HttpRequest, context: InvocationContext): 
 
 async function adminUpdateStatus(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -195,7 +196,7 @@ async function adminUpdateStatus(request: HttpRequest, context: InvocationContex
 
 async function adminAddNote(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -226,7 +227,7 @@ async function adminAddNote(request: HttpRequest, context: InvocationContext): P
 
 async function adminBulkStatus(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -278,33 +279,33 @@ app.http('adminListOrders', {
   route: 'mgmt/orders',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminListOrders,
+  handler: wrapCors(adminListOrders),
 });
 
 app.http('adminGetOrder', {
   route: 'mgmt/orders/{id}',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminGetOrder,
+  handler: wrapCors(adminGetOrder),
 });
 
 app.http('adminUpdateStatus', {
   route: 'mgmt/orders/{id}/status',
   methods: ['PATCH', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminUpdateStatus,
+  handler: wrapCors(adminUpdateStatus),
 });
 
 app.http('adminAddNote', {
   route: 'mgmt/orders/{id}/notes',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminAddNote,
+  handler: wrapCors(adminAddNote),
 });
 
 app.http('adminBulkStatus', {
   route: 'mgmt/orders/bulk-status',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminBulkStatus,
+  handler: wrapCors(adminBulkStatus),
 });

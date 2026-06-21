@@ -142,11 +142,15 @@ export default function CheckoutPage() {
       handler: async (response: RzpResponse) => {
         // 3. Server verifies the HMAC signature before we trust the payment.
         try {
-          const verifyRes = await verifyPayment(order.orderId, {
-            razorpayOrderId: response.razorpay_order_id,
-            razorpayPaymentId: response.razorpay_payment_id,
-            razorpaySignature: response.razorpay_signature,
-          });
+          const verifyRes = await verifyPayment(
+            order.orderId,
+            {
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            },
+            order.orderToken,
+          );
           clearCart();
           const params = new URLSearchParams({
             orderId: order.orderId,

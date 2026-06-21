@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
@@ -207,5 +208,5 @@ app.http('razorpayWebhook', {
   methods: ['POST'],
   authLevel: 'anonymous',
   route: 'razorpay/webhook',
-  handler: handleRazorpayWebhook,
+  handler: wrapCors(handleRazorpayWebhook),
 });

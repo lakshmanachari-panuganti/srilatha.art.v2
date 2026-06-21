@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { upsertEntity, queryEntities } from '../utils/tableStorage';
 import { sendWhatsApp, STORE_CONTACT_NUMBER } from './whatsapp';
@@ -154,12 +155,12 @@ app.http('customOrdersPost', {
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
   route: 'custom-orders',
-  handler: handlePostCustomOrder,
+  handler: wrapCors(handlePostCustomOrder),
 });
 
 app.http('customOrdersGet', {
   methods: ['GET'],
   authLevel: 'anonymous',
   route: 'custom-orders',
-  handler: handleGetCustomOrders,
+  handler: wrapCors(handleGetCustomOrders),
 });

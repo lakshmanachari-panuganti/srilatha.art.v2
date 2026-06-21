@@ -67,6 +67,11 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    // Server-side revoke first (best-effort, non-blocking) — bumps the
+    // admin's tokenVersion so any other browser tab / stolen token loses
+    // access. Local state clears regardless of the network result so the
+    // sign-out UX is immediate.
+    void adminApi.logout().catch(() => undefined);
     clearAdminToken();
     localStorage.removeItem(USER_KEY);
     setAdmin(null);

@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -352,19 +353,19 @@ app.http('forgotPasswordRequest', {
   route: 'auth/forgot-password/request',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: forgotPasswordRequest,
+  handler: wrapCors(forgotPasswordRequest),
 });
 
 app.http('forgotPasswordVerify', {
   route: 'auth/forgot-password/verify',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: forgotPasswordVerify,
+  handler: wrapCors(forgotPasswordVerify),
 });
 
 app.http('forgotPasswordReset', {
   route: 'auth/forgot-password/reset',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: forgotPasswordReset,
+  handler: wrapCors(forgotPasswordReset),
 });

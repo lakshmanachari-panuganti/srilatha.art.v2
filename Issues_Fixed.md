@@ -203,9 +203,6 @@ future drift or accidental secret commits.
 
 | ID | Reason for deferral |
 |---|---|
-| **VUL-004** (require JWT on `verifyPayment`) | Could break guest checkout if that flow exists. Audit first, then enable. Next phase. |
-| **VUL-008** (CORS allowlist) | Needs the full list of dev/preview/prod SWA origins before we can safely drop `*`. |
-| **VUL-009** (cookie auth + revocation) | Coordinated client change. Phase 3. |
 | **VUL-016** (`zod` per endpoint) | Bigger refactor; tracked separately. |
 
 ---
@@ -308,3 +305,141 @@ Additionally:
   for legitimate carts. New failure modes (400 `productId unavailable`,
   400 `Too many items`, 400 `Invalid quantity`) surface cleanly via the
   existing `ApiError` handling and tell the user to refresh their cart.
+
+---
+
+## 2026-06-21 — Phase 3: Coordinated client/server hardening
+
+Phase 3 closes the remaining audit findings that needed coordinated
+backend + frontend changes. Backend `tsc` and frontend `next build` both
+pass clean.
+
+### VUL-004 (full fix) — `verifyPayment` now requires a signed order session token
+**Severity:** HIGH
+**Files:**
+[`backend/src/functions/orders.ts`](backend/src/functions/orders.ts),
+[`frontend/lib/api.ts`](frontend/lib/api.ts),
+[`frontend/app/checkout/page.tsx`](frontend/app/checkout/page.tsx)
+
+Phase 1 already bound the Razorpay HMAC to the stored order and used a
+timing-safe compare. The remaining gap was that `verifyPayment` had no
+caller authentication at all, which mattered most for guest checkout
+where there's no customer JWT. An attacker who watched a victim's
+Razorpay flow could still attempt to flip the victim's order to
+`confirmed` using their own signature.
+
+**Fix:**
+1. `createOrder` now mints a short-lived (1h) HMAC-signed `orderToken`
+   carrying `{ purpose: 'order-session', orderId, razorpayOrderId }` and
+   returns it in the response.
+2. `verifyPayment` requires this token via the `Authorization: Bearer`
+   header. The token's `purpose`, `orderId` (vs route), and
+   `razorpayOrderId` (vs body) are all verified before any state change.
+3. The frontend's `verifyPayment` helper now takes the `orderToken` as a
+   third argument; the checkout page passes it through Razorpay's
+   handler. Guest checkout still works — no customer JWT is required.
+
+---
+
+### VUL-008 — Wildcard CORS replaced with an allowlist via `wrapCors`
+**Severity:** MEDIUM
+**Files:**
+[`backend/src/utils/cors.ts`](backend/src/utils/cors.ts) (new),
+every `backend/src/functions/*.ts` registration
+
+Every endpoint previously returned `Access-Control-Allow-Origin: *`,
+which removed a useful defense layer against XSS-driven token theft.
+
+**Fix:** new `wrapCors(handler)` helper wraps every `app.http()`
+registration. The wrapper:
+- Reflects only origins in `ALLOWED_ORIGINS` (currently
+  `http://localhost:3000`, `https://www.srilatha.art`,
+  `https://srilatha.art`, `https://www.lucky1.online`, and the dev SWA
+  preview URL).
+- Sets `Vary: Origin` so caches behave correctly.
+- Intercepts `OPTIONS` pre-flights uniformly so per-file `options()`
+  helpers don't drift.
+- Removes the wildcard `*` from every response, so unknown origins
+  are treated as cross-origin blocked by the browser. Non-browser
+  clients (server-to-server, curl) are unaffected.
+
+55 handler registrations across 23 files now wrap with `wrapCors`.
+
+---
+
+### VUL-009 — Customer/admin token revocation + 24h TTL with refresh
+**Severity:** MEDIUM
+**Files:**
+[`backend/src/utils/customerStore.ts`](backend/src/utils/customerStore.ts),
+[`backend/src/functions/customerAuth.ts`](backend/src/functions/customerAuth.ts),
+[`backend/src/functions/adminAuth.ts`](backend/src/functions/adminAuth.ts),
+[`backend/src/middleware/adminGuard.ts`](backend/src/middleware/adminGuard.ts),
+[`backend/src/functions/orders.ts`](backend/src/functions/orders.ts),
+[`backend/src/functions/customerReviews.ts`](backend/src/functions/customerReviews.ts),
+[`frontend/components/auth/AuthProvider.tsx`](frontend/components/auth/AuthProvider.tsx),
+[`frontend/components/admin/AdminAuthProvider.tsx`](frontend/components/admin/AdminAuthProvider.tsx),
+[`frontend/lib/api.ts`](frontend/lib/api.ts),
+[`frontend/lib/adminApi.ts`](frontend/lib/adminApi.ts)
+
+Customer tokens were 30 days with no revocation. A token stolen via XSS
+or token-bearer leak was therefore valid for up to a month, with no
+server-side lever to cut it short.
+
+**Fix:**
+1. **Token versioning.** Both `CustomerEntity` and `AdminEntity` gained
+   a `tokenVersion?: number` field. Issued JWTs now carry a matching
+   `ver` claim plus a unique `jti`.
+2. **Verify-side check.** Customer and admin JWT verify paths now load
+   the entity and reject tokens whose `ver` is behind the server's
+   record. A new shared helper `verifyCustomerToken` consolidates the
+   customer-side logic. `readAdminClaims` / `requireAdmin` became async.
+   Legacy tokens without a `ver` claim are treated as `ver: 0` so
+   existing sessions survive the deploy until they age out.
+3. **Logout = revoke.** `/api/auth/logout` and `/api/mgmt/logout` bump
+   `tokenVersion`, invalidating every outstanding token for that account
+   (including on other devices / stolen copies). `setPasswordHash` also
+   bumps the version, so password resets revoke too.
+4. **Shorter customer TTL.** Customer token TTL dropped from 30 days to
+   24 hours.
+5. **Silent refresh.** New `/api/auth/refresh` mints a fresh token if
+   the presented one is still valid OR recently expired (within a 7-day
+   grace window). `AuthProvider` schedules a refresh 4 hours before
+   expiry and also runs a refresh on mount when the stored token has
+   already aged out, so active users never see a sign-out and idle
+   users (offline a few days) come back cleanly.
+6. **Frontend wiring.** `AuthProvider.logout` and
+   `AdminAuthProvider.logout` now call the server-side logout endpoint
+   in the background so a sign-out on one device revokes other tabs.
+   Local state is cleared immediately regardless of network.
+
+Admin token TTL stays at 12 hours (was already short).
+
+---
+
+## Validation (Phase 3)
+
+- Backend: `npm run build` (tsc) — **passes clean**.
+- Frontend: `npm run build` (next build, static export) — **passes
+  clean**, all 28 routes generated.
+- Frontend client contract: `createOrder` response now includes
+  `orderToken` and `orderTokenExpiresIn` (additive). `verifyPayment`'s
+  client helper signature changed from `(orderId, input)` to
+  `(orderId, input, orderToken)` — all internal callers are updated.
+  AuthProvider preserves the existing API (`{ user, login, logout }`)
+  so no consumer needs to change.
+
+## Notes for the deploy
+
+- The customer-token TTL change is **active immediately**, but existing
+  30-day tokens stay valid until their original `exp`. Users who sign
+  in after deploy get 24h tokens (with silent refresh).
+- Admin `tokenVersion` defaults to 0 for legacy rows. The first
+  successful login after deploy issues a fresh `ver: 0` token; logout
+  bumps the row to 1, invalidating any older tokens that somehow
+  carried a different `ver`.
+- `GOOGLE_CLIENT_ID` must be set in the Function App config for the
+  Google sign-in path to work (it already is — verified via
+  `Update-AppSettings-v2.ps1`).
+- The CORS allowlist must be extended in
+  [`backend/src/utils/cors.ts`](backend/src/utils/cors.ts) whenever a
+  new SWA preview / custom domain is added.

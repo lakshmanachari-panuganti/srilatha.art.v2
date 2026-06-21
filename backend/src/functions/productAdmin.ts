@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import { v4 as uuidv4 } from 'uuid';
@@ -115,7 +116,7 @@ function safeJson(value: unknown): unknown[] {
 
 async function adminCreateProduct(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -150,7 +151,7 @@ async function adminCreateProduct(request: HttpRequest, context: InvocationConte
 
 async function adminListProducts(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -168,7 +169,7 @@ async function adminListProducts(request: HttpRequest, context: InvocationContex
 
 async function adminUpdateProduct(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -213,7 +214,7 @@ async function adminUpdateProduct(request: HttpRequest, context: InvocationConte
 
 async function adminDeleteProduct(request: HttpRequest, context: InvocationContext): Promise<HttpResponseInit> {
   if (request.method === 'OPTIONS') return options();
-  const auth = requireAdmin(request);
+  const auth = await requireAdmin(request);
   if ('status' in auth) return auth;
 
   try {
@@ -247,26 +248,26 @@ app.http('adminListProducts', {
   route: 'mgmt/products',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminListProducts,
+  handler: wrapCors(adminListProducts),
 });
 
 app.http('adminCreateProduct', {
   route: 'mgmt/products',
   methods: ['POST'],
   authLevel: 'anonymous',
-  handler: adminCreateProduct,
+  handler: wrapCors(adminCreateProduct),
 });
 
 app.http('adminUpdateProduct', {
   route: 'mgmt/products/{id}',
   methods: ['PATCH', 'PUT', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: adminUpdateProduct,
+  handler: wrapCors(adminUpdateProduct),
 });
 
 app.http('adminDeleteProduct', {
   route: 'mgmt/products/{id}',
   methods: ['DELETE'],
   authLevel: 'anonymous',
-  handler: adminDeleteProduct,
+  handler: wrapCors(adminDeleteProduct),
 });

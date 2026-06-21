@@ -1,9 +1,11 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { getTableClient, upsertEntity, queryEntities, deleteEntity, getEntity } from '../utils/tableStorage';
 import { computeCouponDiscount, getCouponByCode } from './coupons';
+import { verifyCustomerToken } from './customerAuth';
 import { sendEmail } from '../utils/email';
 import { renderOrderConfirmation } from '../templates/emailTemplates';
 import { STORE_CONTACT_NUMBER } from './whatsapp';
@@ -110,6 +112,18 @@ interface ProductEntity {
 
 const MAX_ITEMS_PER_ORDER = 50;
 const MAX_QTY_PER_ITEM = 99;
+
+// TTL for the per-order session token returned from createOrder and required
+// by verifyPayment. 1 hour is more than enough for the user to complete the
+// Razorpay flow and well under the order's pending-cleanup window.
+const ORDER_TOKEN_TTL_SECONDS = 60 * 60;
+const ORDER_TOKEN_PURPOSE = 'order-session';
+
+interface OrderTokenClaims {
+  purpose: typeof ORDER_TOKEN_PURPOSE;
+  orderId: string;
+  razorpayOrderId: string;
+}
 
 /**
  * Look up the catalog product by id (RowKey). Cross-partition because the
@@ -274,6 +288,21 @@ async function createOrder(
       ),
     );
 
+    // Mint a short-lived signed session token. The frontend must echo it back
+    // to verifyPayment, where the server checks that the token's orderId +
+    // razorpayOrderId match the request. This is what gates an anonymous
+    // caller from flipping arbitrary orders to 'confirmed': they would need a
+    // token issued for that specific order.
+    const orderToken = jwt.sign(
+      {
+        purpose: ORDER_TOKEN_PURPOSE,
+        orderId,
+        razorpayOrderId,
+      } satisfies OrderTokenClaims,
+      JWT_SECRET,
+      { expiresIn: ORDER_TOKEN_TTL_SECONDS },
+    );
+
     return json({
       orderId,
       razorpayOrderId,
@@ -284,6 +313,8 @@ async function createOrder(
       appliedCouponCode: appliedCouponCode ?? null,
       currency: 'INR',
       key: RAZORPAY_KEY_ID,
+      orderToken,
+      orderTokenExpiresIn: ORDER_TOKEN_TTL_SECONDS,
     });
   } catch (err) {
     context.error('createOrder error', err);
@@ -309,16 +340,14 @@ async function getOrder(
       return json({ error: 'Authorization header missing or malformed' }, 401);
     }
 
-    let claims: { email?: string };
-    try {
-      claims = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as { email?: string };
-    } catch {
+    // verifyCustomerToken checks the signature, algorithm, expiry, AND
+    // the server-side tokenVersion — so a logged-out / password-changed
+    // token is rejected even before its natural expiry.
+    const verified = await verifyCustomerToken(token);
+    if (!verified) {
       return json({ error: 'Invalid or expired token' }, 401);
     }
-    const callerEmail = claims?.email?.toLowerCase();
-    if (!callerEmail) {
-      return json({ error: 'Invalid or expired token' }, 401);
-    }
+    const callerEmail = verified.claims.email.toLowerCase();
 
     const orderId = request.params.orderId;
     if (!orderId) {
@@ -379,6 +408,31 @@ async function verifyPayment(
       return json({ error: 'orderId is required' }, 400);
     }
 
+    // Caller proof of possession: the order session token minted at
+    // createOrder time. Guest checkout has no customer JWT, so this is what
+    // ties verify-payment to a specific order — without it, a valid Razorpay
+    // signature from an attacker's own payment could be replayed against a
+    // victim's orderId.
+    const authHeader = request.headers.get('Authorization') ?? '';
+    const orderToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!orderToken) {
+      return json({ error: 'Order session token required.' }, 401);
+    }
+    let tokenClaims: OrderTokenClaims;
+    try {
+      tokenClaims = jwt.verify(orderToken, JWT_SECRET, {
+        algorithms: ['HS256'],
+      }) as OrderTokenClaims;
+    } catch {
+      return json({ error: 'Order session expired. Please retry checkout.' }, 401);
+    }
+    if (
+      tokenClaims?.purpose !== ORDER_TOKEN_PURPOSE ||
+      tokenClaims.orderId !== orderId
+    ) {
+      return json({ error: 'Order session token does not match this order.' }, 401);
+    }
+
     const body = (await request.json()) as {
       razorpayOrderId: string;
       razorpayPaymentId: string;
@@ -392,6 +446,12 @@ async function verifyPayment(
         { error: 'razorpayOrderId, razorpayPaymentId and razorpaySignature are required' },
         400,
       );
+    }
+    // The token's razorpayOrderId is the server-of-record from createOrder.
+    // The body's razorpayOrderId must also match. We check the token first so
+    // an attacker can't substitute a stale token from a different order.
+    if (tokenClaims.razorpayOrderId !== razorpayOrderId) {
+      return json({ error: 'Order/payment mismatch' }, 400);
     }
 
     // Find the order in 'pending' partition first, then others
@@ -557,19 +617,19 @@ app.http('createOrder', {
   route: 'orders',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: createOrder,
+  handler: wrapCors(createOrder),
 });
 
 app.http('getOrder', {
   route: 'orders/{orderId}',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: getOrder,
+  handler: wrapCors(getOrder),
 });
 
 app.http('verifyPayment', {
   route: 'orders/{orderId}/verify-payment',
   methods: ['POST', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: verifyPayment,
+  handler: wrapCors(verifyPayment),
 });

@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import crypto from 'node:crypto';
@@ -298,5 +299,5 @@ app.http('whatsappWebhook', {
   methods: ['GET', 'POST', 'OPTIONS'],
   authLevel: 'anonymous',
   route: 'whatsapp/webhook',
-  handler: whatsappWebhookRouter,
+  handler: wrapCors(whatsappWebhookRouter),
 });

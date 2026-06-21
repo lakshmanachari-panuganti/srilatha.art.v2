@@ -1,3 +1,4 @@
+import { wrapCors } from '../utils/cors';
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { odata } from '@azure/data-tables';
 import { getTableClient, queryEntities, queryEntitiesAll } from '../utils/tableStorage';
@@ -183,12 +184,12 @@ app.http('listProducts', {
   route: 'products',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: listProducts,
+  handler: wrapCors(listProducts),
 });
 
 app.http('getProductBySlug', {
   route: 'products/{slug}',
   methods: ['GET', 'OPTIONS'],
   authLevel: 'anonymous',
-  handler: getProductBySlug,
+  handler: wrapCors(getProductBySlug),
 });
