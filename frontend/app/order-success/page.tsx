@@ -11,6 +11,7 @@ function OrderSuccessInner() {
   const emailSent = sp.get('emailSent') === '1';
   const emailTo = sp.get('emailTo');
   const emailError = sp.get('emailError');
+  const phoneNumber = sp.get('phoneNumber') ?? '';
 
   return (
     <div className="page-shell">
@@ -49,19 +50,9 @@ function OrderSuccessInner() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', textAlign: 'left', marginBottom: 'var(--sp-8)' }}>
             {emailSent && emailTo && (
               <div data-testid="email-sent" style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                <span>📧</span><span>Confirmation sent to <strong>{emailTo}</strong></span>
+                <span>📧</span><span>Confirmation sent to <strong>{emailTo}</strong> and your whatsapp number <strong>{phoneNumber}</strong></span>
               </div>
             )}
-            {[
-              ['🧾', `Keep this Order ID safe — you'll need it to track your order`],
-              ['📞', `Updates will come via WhatsApp from ${CONTACT.phoneDisplay}`],
-              ['📦', `Dispatch within 3 business days`],
-              ['🚚', `Delivery in 5–7 business days, pan-India`],
-            ].map(([icon, text]) => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                <span>{icon}</span><span>{text}</span>
-              </div>
-            ))}
           </div>
 
           {!emailSent && (
